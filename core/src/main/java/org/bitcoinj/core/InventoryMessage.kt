@@ -1,0 +1,74 @@
+/*
+ * Copyright 2011 Google Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.bitcoinj.core
+
+import com.google.common.base.Preconditions.checkArgument
+
+/**
+ *
+ * Represents the "inv" P2P network message. An inv contains a list of hashes of either blocks or transactions. It's
+ * a bandwidth optimization - on receiving some data, a (fully validating) peer sends every connected peer an inv
+ * containing the hash of what it saw. It'll only transmit the full thing if a peer asks for it with a
+ * [GetDataMessage].
+ *
+ *
+ * Instances of this class are not safe for use by multiple threads.
+ */
+open class InventoryMessage : ListMessage {
+
+    @Throws(ProtocolException::class)
+    constructor(params: NetworkParameters, bytes: ByteArray) : super(params, bytes) {
+    }
+
+    /**
+     * Deserializes an 'inv' message.
+     * @param params NetworkParameters object.
+     * @param payload Bitcoin protocol formatted byte array containing message content.
+     * @param serializer the serializer to use for this message.
+     * @param length The length of message if known.  Usually this is provided when deserializing of the wire
+     * as the length will be provided as part of the header.  If unknown then set to Message.UNKNOWN_LENGTH
+     * @throws ProtocolException
+     */
+    @Throws(ProtocolException::class)
+    constructor(params: NetworkParameters, payload: ByteArray, serializer: MessageSerializer, length: Int) : super(params, payload, serializer, length) {
+    }
+
+    constructor(params: NetworkParameters) : super(params) {}
+
+    fun addBlock(block: Block) {
+        addItem(InventoryItem(InventoryItem.Type.Block, block.hash))
+    }
+
+    fun addTransaction(tx: Transaction) {
+        addItem(InventoryItem(InventoryItem.Type.Transaction, tx.hash))
+    }
+
+    companion object {
+
+        /** A hard coded constant in the protocol.  */
+        val MAX_INV_SIZE = 50000
+
+        /** Creates a new inv message for the given transactions.  */
+        fun with(vararg txns: Transaction): InventoryMessage {
+            checkArgument(txns.size > 0)
+            val result = InventoryMessage(txns[0].params)
+            for (tx in txns)
+                result.addTransaction(tx)
+            return result
+        }
+    }
+}
