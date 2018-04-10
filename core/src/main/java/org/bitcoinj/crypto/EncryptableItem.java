@@ -41,5 +41,5 @@ public interface EncryptableItem {
     Protos.Wallet.EncryptionType getEncryptionType();
 
     /** Returns the time in seconds since the UNIX epoch at which this encryptable item was first created/derived. */
-    long getCreationTimeSeconds();
+    long creationTimeSeconds = 0;
 }

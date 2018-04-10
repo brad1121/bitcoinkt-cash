@@ -58,7 +58,8 @@ import java.util.Arrays
 import java.util.Comparator
 
 import com.google.common.base.Preconditions.*
-import org.bitcoinj.core.ECKey.Companion
+
+import kotlin.experimental.and
 
 // TODO: Move this class to tracking compression state itself.
 // The Bouncy Castle developers are deprecating their own tracking of the compression state.
@@ -105,8 +106,24 @@ open class ECKey : EncryptableItem {
 
     // Creation time of the key in seconds since the epoch, or zero if the key was deserialized from a version that did
     // not have this field.
-    protected var creationTimeSeconds: Long = 0
+    protected var creationTimeSeconds: Long
+    /**
+     * Returns the creation time of this key or zero if the key was deserialized from a version that did not store
+     * that data.
+     */
+       get(): Long {
+            return creationTimeSeconds
+        }
 
+    /**
+     * Sets the creation time of this key. Zero is a convention to mean "unavailable". This method can be useful when
+     * you have a raw key you are importing from somewhere else.
+     */
+     set(newCreationTimeSeconds: Long) {
+        if (newCreationTimeSeconds < 0)
+            throw IllegalArgumentException("Cannot set creation time to negative value: " + newCreationTimeSeconds)
+        creationTimeSeconds = newCreationTimeSeconds
+    }
     /**
      * Returns the KeyCrypter that was used to encrypt to encrypt this ECKey. You need this to decrypt the ECKey.
      */
@@ -119,14 +136,7 @@ open class ECKey : EncryptableItem {
     var encryptedPrivateKey: EncryptedData? = null
         protected set
 
-    var pubKeyHash: ByteArray? = null
-    /** Gets the hash160 form of the public key (as seen in addresses).  */
-        get(): ByteArray? {
-            if (pubKeyHash == null)
-                pubKeyHash = Utils.sha256hash160(this.pub.encoded)
-            return pubKeyHash
-        }
-        private set
+    private var pubKeyHash: ByteArray? = null
 
     /**
      * Returns true if this key doesn't have unencrypted access to private key bytes. This may be because it was never
@@ -187,7 +197,7 @@ open class ECKey : EncryptableItem {
      * Generates an entirely new keypair with the given [SecureRandom] object. Point compression is used so the
      * resulting public key will be 33 bytes (32 for the co-ordinate and 1 byte to represent the y bit).
      */
-    @JvmOverloads constructor(secureRandom: SecureRandom = secureRandom) {
+    constructor(secureRandom: SecureRandom) {
         val generator = ECKeyPairGenerator()
         val keygenParams = ECKeyGenerationParameters(CURVE, secureRandom)
         generator.init(keygenParams)
@@ -322,7 +332,12 @@ open class ECKey : EncryptableItem {
 
     }
 
-
+    /** Gets the hash160 form of the public key (as seen in addresses).  */
+    fun getPubKeyHash(): ByteArray {
+        if (pubKeyHash == null)
+            pubKeyHash = Utils.sha256hash160(this.pub.encoded)
+        return pubKeyHash as ByteArray
+    }
 
     /**
      * Returns the address that corresponds to the public part of this ECKey. Note that an address is derived from
@@ -592,26 +607,10 @@ open class ECKey : EncryptableItem {
      * @throws IllegalStateException if the private key is not available.
      */
     fun getPrivateKeyEncoded(params: NetworkParameters?): DumpedPrivateKey {
-        return DumpedPrivateKey(params!!, privKeyBytes, isCompressed)
+        return DumpedPrivateKey(params!!, privKeyBytes!!, isCompressed)
     }
 
-    /**
-     * Returns the creation time of this key or zero if the key was deserialized from a version that did not store
-     * that data.
-     */
-    override fun getCreationTimeSeconds(): Long {
-        return creationTimeSeconds
-    }
 
-    /**
-     * Sets the creation time of this key. Zero is a convention to mean "unavailable". This method can be useful when
-     * you have a raw key you are importing from somewhere else.
-     */
-    open fun setCreationTimeSeconds(newCreationTimeSeconds: Long) {
-        if (newCreationTimeSeconds < 0)
-            throw IllegalArgumentException("Cannot set creation time to negative value: " + newCreationTimeSeconds)
-        creationTimeSeconds = newCreationTimeSeconds
-    }
 
     /**
      * Create an encrypted private key with the keyCrypter and the AES key supplied.
@@ -627,7 +626,7 @@ open class ECKey : EncryptableItem {
         val privKeyBytes = privKeyBytes
         val encryptedPrivateKey = keyCrypter.encrypt(privKeyBytes, aesKey)
         val result = ECKey.fromEncrypted(encryptedPrivateKey, keyCrypter, pubKey)
-        result.setCreationTimeSeconds(creationTimeSeconds)
+        result.creationTimeSeconds =(creationTimeSeconds)
         return result
     }
 
@@ -652,7 +651,7 @@ open class ECKey : EncryptableItem {
             key = key.decompress()
         if (!Arrays.equals(key.pubKey, pubKey))
             throw KeyCrypterException("Provided AES key is wrong")
-        key.setCreationTimeSeconds(creationTimeSeconds)
+        key.creationTimeSeconds = (creationTimeSeconds)
         return key
     }
 
@@ -1090,7 +1089,7 @@ open class ECKey : EncryptableItem {
                 checkArgument(pubkey.tagNo == 1, "Input has 'publicKey' with bad tag number")
                 val pubbits = (pubkey.`object` as DERBitString).bytes
                 checkArgument(pubbits.size == 33 || pubbits.size == 65, "Input has 'publicKey' with invalid length")
-                val encoding = pubbits[0] and 0xFF
+                val encoding = pubbits[0] and 0xFF.toByte()
                 // Only allow compressed(2,3) and uncompressed(4), not infinity(0) or hybrid(6,7)
                 checkArgument(encoding >= 2 && encoding <= 4, "Input has 'publicKey' with invalid encoding")
 
@@ -1130,7 +1129,7 @@ open class ECKey : EncryptableItem {
             // Parse the signature bytes into r/s and the selector value.
             if (signatureEncoded.size < 65)
                 throw SignatureException("Signature truncated, expected 65 bytes and got " + signatureEncoded.size)
-            var header = signatureEncoded[0] and 0xFF
+            var header = signatureEncoded[0] and 0xFF.toByte()
             // The header byte: 0x1B = first key with even y, 0x1C = first key with odd y,
             //                  0x1D = second key with even y, 0x1E = second key with odd y
             if (header < 27 || header > 34)
@@ -1145,7 +1144,7 @@ open class ECKey : EncryptableItem {
             var compressed = false
             if (header >= 31) {
                 compressed = true
-                header -= 4
+                header = (header.toInt() - 4).toByte()
             }
             val recId = header - 27
             return recoverFromSignature(recId, sig, messageHash, compressed) ?: throw SignatureException("Could not recover public key from signature")

@@ -323,17 +323,17 @@ class BloomFilter : Message {
          */
         fun murmurHash3(data: ByteArray, nTweak: Long, hashNum: Int, `object`: ByteArray): Int {
             var h1 = (hashNum * 0xFBA4C795L + nTweak).toInt()
-            val c1 = -0x3361d2af
-            val c2 = 0x1b873593
+            val c1 = (-0x3361d2af).toByte()
+            val c2 = (0x1b873593).toByte()
 
             val numBlocks = `object`.size / 4 * 4
             // body
             var i = 0
             while (i < numBlocks) {
-                var k1 = `object`[i] and  0xFF.toByte() or
-                        (`object`[i + 1] and 0xFF.toByte() shl 8) or
-                        (`object`[i + 2] and 0xFF.toByte() shl 16) or
-                        (`object`[i + 3] and 0xFF.toByte() shl 24)
+                var k1 = (`object`[i] and  0xFF.toByte()).toInt() or
+                        ((`object`[i + 1] and 0xFF.toByte()).toInt() shl 8) or
+                        ((`object`[i + 2] and 0xFF.toByte()).toInt() shl 16) or
+                        ((`object`[i + 3] and 0xFF.toByte()).toInt() shl 24)
 
                 k1 *= c1
                 k1 = rotateLeft32(k1, 15)
@@ -348,9 +348,9 @@ class BloomFilter : Message {
             var k1 = 0
             when (`object`.size and 3) {
                 3 -> {
-                    k1 = k1 xor (`object`[numBlocks + 2] and 0xff shl 16)
-                    k1 = k1 xor (`object`[numBlocks + 1] and 0xff shl 8)
-                    k1 = k1 xor (`object`[numBlocks] and 0xff)
+                    k1 = k1 xor ((`object`[numBlocks + 2] and 0xff.toByte()).toInt() shl 16)
+                    k1 = k1 xor ((`object`[numBlocks + 1] and 0xff.toByte()).toInt() shl 8)
+                    k1 = k1 xor ((`object`[numBlocks] and 0xff.toByte()).toInt())
                     k1 *= c1
                     k1 = rotateLeft32(k1, 15)
                     k1 *= c2
@@ -358,8 +358,8 @@ class BloomFilter : Message {
                 }
             // Fall through.
                 2 -> {
-                    k1 = k1 xor (`object`[numBlocks + 1] and 0xff shl 8)
-                    k1 = k1 xor (`object`[numBlocks] and 0xff)
+                    k1 = k1 xor ((`object`[numBlocks + 1] and 0xff.toByte()).toInt() shl 8)
+                    k1 = k1 xor ((`object`[numBlocks] and 0xff.toByte()).toInt())
                     k1 *= c1
                     k1 = rotateLeft32(k1, 15)
                     k1 *= c2
@@ -367,7 +367,7 @@ class BloomFilter : Message {
                 }
             // Fall through.
                 1 -> {
-                    k1 = k1 xor (`object`[numBlocks] and 0xff)
+                    k1 = k1 xor ((`object`[numBlocks] and 0xff.toByte()).toInt())
                     k1 *= c1
                     k1 = rotateLeft32(k1, 15)
                     k1 *= c2
@@ -386,7 +386,7 @@ class BloomFilter : Message {
             h1 *= -0x3d4d51cb
             h1 = h1 xor h1.ushr(16)
 
-            return ((h1 and 0xFFFFFFFFL) % (data.size * 8)).toInt()
+            return ((h1 and 0xFFFFFFFFL.toInt()) % (data.size * 8))
         }
     }
 }
