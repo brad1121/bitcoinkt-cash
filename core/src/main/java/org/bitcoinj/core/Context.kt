@@ -67,15 +67,15 @@ class Context
      * so confirmed that it's safe to delete data. Re-orgs larger than the event horizon will not be correctly
      * processed, so the default value is high (100).
      */
-    val eventHorizon = 100
+    var eventHorizon = 100
     /**
      * Whether to ensure the minimum required fee by default when completing transactions. For details, see [SendRequest.ensureMinRequiredFee].
      */
-    val isEnsureMinRequiredFee = true
+    var isEnsureMinRequiredFee = true
     /**
      * The default fee per 1000 bytes of transaction data to pay when completing transactions. For details, see [SendRequest.feePerKb].
      */
-    val feePerKb = Transaction.DEFAULT_TX_FEE
+    var feePerKb = Transaction.DEFAULT_TX_FEE
 
     init {
         log.info("Creating bitcoinj {} context.", VersionMessage.BITCOINJ_VERSION)
@@ -102,7 +102,7 @@ class Context
     companion object {
         private val log = LoggerFactory.getLogger(Context::class.java!!)
 
-        @Volatile private var lastConstructed: Context?
+        @Volatile private var lastConstructed: Context? = null
         private var isStrictMode: Boolean = false
         private val slot = ThreadLocal<Context>()
 
@@ -161,7 +161,7 @@ class Context
 
             if (context!!.params !== params)
                 throw IllegalStateException("Context does not match implicit network params: " + context!!.params + " vs " + params)
-            return context
+            return context!!
         }
 
         /**

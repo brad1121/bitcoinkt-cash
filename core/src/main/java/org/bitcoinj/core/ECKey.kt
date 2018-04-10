@@ -119,7 +119,14 @@ open class ECKey : EncryptableItem {
     var encryptedPrivateKey: EncryptedData? = null
         protected set
 
-    private var pubKeyHash: ByteArray? = null
+    var pubKeyHash: ByteArray? = null
+    /** Gets the hash160 form of the public key (as seen in addresses).  */
+        get(): ByteArray? {
+            if (pubKeyHash == null)
+                pubKeyHash = Utils.sha256hash160(this.pub.encoded)
+            return pubKeyHash
+        }
+        private set
 
     /**
      * Returns true if this key doesn't have unencrypted access to private key bytes. This may be because it was never
@@ -315,12 +322,7 @@ open class ECKey : EncryptableItem {
 
     }
 
-    /** Gets the hash160 form of the public key (as seen in addresses).  */
-    fun getPubKeyHash(): ByteArray {
-        if (pubKeyHash == null)
-            pubKeyHash = Utils.sha256hash160(this.pub.encoded)
-        return pubKeyHash
-    }
+
 
     /**
      * Returns the address that corresponds to the public part of this ECKey. Note that an address is derived from

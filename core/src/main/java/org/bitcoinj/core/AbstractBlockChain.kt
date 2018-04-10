@@ -95,7 +95,7 @@ constructor(context: Context, wallets: List<Wallet>,
             /**
              * Returns the [BlockStore] the chain was constructed with. You can use this to iterate over the chain.
              */
-            val blockStore: BlockStore) {
+           open val blockStore: BlockStore) {
     protected val lock = Threading.lock("blockchain")
 
     /**
@@ -109,7 +109,22 @@ constructor(context: Context, wallets: List<Wallet>,
      * potentially invalidating transactions in our wallet.
      */
     protected var chainHead: StoredBlock
-
+    /**
+     * Returns the block at the head of the current best chain. This is the block which represents the greatest
+     * amount of cumulative work done.
+     */
+        get(): StoredBlock {
+            synchronized(chainHeadLock) {
+                return chainHead
+            }
+        }
+        @Throws(BlockStoreException::class)
+        set(chainHead: StoredBlock) {
+            doSetChainHead(chainHead)
+            synchronized(chainHeadLock) {
+                this.chainHead = chainHead
+            }
+        }
     // TODO: Scrap this and use a proper read/write for all of the block chain objects.
     // The chainHead field is read/written synchronized with this object rather than BlockChain. However writing is
     // also guaranteed to happen whilst BlockChain is synchronized (see setChainHead). The goal of this is to let
@@ -142,7 +157,7 @@ constructor(context: Context, wallets: List<Wallet>,
      * @return the height of the best known chain, convenience for <tt>getChainHead().getHeight()</tt>.
      */
     val bestChainHeight: Int
-        get() = getChainHead().height
+        get() = chainHead.height
 
     // Holds a block header and, optionally, a list of tx hashes or block's transactions
     internal inner class OrphanBlock(val block: Block, val filteredTxHashes: List<Sha256Hash>?, val filteredTxn: Map<Sha256Hash, Transaction>?) {
@@ -188,7 +203,7 @@ constructor(context: Context, wallets: List<Wallet>,
         val chainHeight = bestChainHeight
         if (walletHeight != chainHeight) {
             log.warn("Wallet/chain height mismatch: {} vs {}", walletHeight, chainHeight)
-            log.warn("Hashes: {} vs {}", wallet.lastBlockSeenHash, getChainHead().header.hash)
+            log.warn("Hashes: {} vs {}", wallet.lastBlockSeenHash, chainHead.header.getHash())
 
             // This special case happens when the VM crashes because of a transaction received. It causes the updated
             // block store to persist, but not the wallet. In order to fix the issue, we roll back the block store to
@@ -392,7 +407,7 @@ constructor(context: Context, wallets: List<Wallet>,
             // a false positive, as expected in any Bloom filtering scheme). The filteredTxn list here will usually
             // only be full of data when we are catching up to the head of the chain and thus haven't witnessed any
             // of the transactions.
-            return add(block.blockHeader, true, block.transactionHashes, block.associatedTransactions)
+            return add(block.blockHeader, true, block.transactionHashes, block.getAssociatedTransactions())
         } catch (e: BlockStoreException) {
             // TODO: Figure out a better way to propagate this exception to the user.
             throw RuntimeException(e)
@@ -448,7 +463,7 @@ constructor(context: Context, wallets: List<Wallet>,
         try {
             // Quick check for duplicates to avoid an expensive check further down (in findSplit). This can happen a lot
             // when connecting orphan transactions due to the dumb brute force algorithm we use.
-            if (block == getChainHead().header) {
+            if (block == chainHead.header) {
                 return true
             }
             if (tryConnecting && orphanBlocks.containsKey(block.getHash())) {
@@ -475,7 +490,7 @@ constructor(context: Context, wallets: List<Wallet>,
             // article here for more details: https://bitcoinj.github.io/security-model
             try {
                 block.verifyHeader()
-                storedPrev = getStoredBlockInCurrentScope(block.prevBlockHash)
+                storedPrev = getStoredBlockInCurrentScope(block.getPrevBlockHash())
                 if (storedPrev != null) {
                     height = storedPrev.height + 1
                 } else {
@@ -497,8 +512,8 @@ constructor(context: Context, wallets: List<Wallet>,
                 // block was solved whilst we were doing it. We put it to one side and try to connect it later when we
                 // have more blocks.
                 checkState(tryConnecting, "bug in tryConnectingOrphans")
-                log.warn("Block does not connect: {} prev {}", block.hashAsString, block.prevBlockHash)
-                orphanBlocks.put(block.hash, OrphanBlock(block, filteredTxHashList, filteredTxn))
+                log.warn("Block does not connect: {} prev {}", block.hashAsString, block.getPrevBlockHash())
+                orphanBlocks.put(block.getHash(), OrphanBlock(block, filteredTxHashList, filteredTxn))
                 return false
             } else {
                 checkState(lock.isHeldByCurrentThread)
@@ -542,7 +557,7 @@ constructor(context: Context, wallets: List<Wallet>,
         checkState(lock.isHeldByCurrentThread)
         val filtered = filteredTxHashList != null && filteredTxn != null
         // Check that we aren't connecting a block that fails a checkpoint check
-        if (!params.passesCheckpoint(storedPrev.height + 1, block.hash))
+        if (!params.passesCheckpoint(storedPrev.height + 1, block.getHash()))
             throw VerificationException("Block failed checkpoint lockin at " + (storedPrev.height + 1))
         if (shouldVerifyTransactions()) {
             checkNotNull<List<Transaction>>(block.transactions)
@@ -551,7 +566,7 @@ constructor(context: Context, wallets: List<Wallet>,
                     throw VerificationException("Block contains non-final transaction")
         }
 
-        val head = getChainHead()
+        val head = chainHead
         if (storedPrev == head) {
             if (filtered && filteredTxn!!.size > 0) {
                 log.debug("Block {} connects to top of best chain with {} transaction(s) of which we were sent {}",
@@ -579,7 +594,7 @@ constructor(context: Context, wallets: List<Wallet>,
             val newStoredBlock = addToBlockStore(storedPrev,
                     if (block.transactions == null) block else block.cloneAsHeader(), txOutChanges)
             versionTally.add(block.version)
-            setChainHead(newStoredBlock)
+            chainHead = newStoredBlock
             log.debug("Chain is now {} blocks high, running listeners", newStoredBlock.height)
             informListenersForNewBlock(block, NewBlockType.BEST_CHAIN, filteredTxHashList, filteredTxn, newStoredBlock)
         } else {
@@ -598,7 +613,7 @@ constructor(context: Context, wallets: List<Wallet>,
                     // that we already saw and linked into the chain previously, which isn't the chain head.
                     // Re-processing it is confusing for the wallet so just skip.
                     log.warn("Saw duplicated block in main chain at height {}: {}",
-                            newBlock.height, newBlock.header.hash)
+                            newBlock.height, newBlock.header.getHash())
                     return
                 }
                 if (splitPoint == null) {
@@ -710,7 +725,7 @@ constructor(context: Context, wallets: List<Wallet>,
         //
         // Firstly, calculate the block at which the chain diverged. We only need to examine the
         // chain from beyond this block to find differences.
-        val head = getChainHead()
+        val head = chainHead
         val splitPoint = findSplit(newChainHead, head, blockStore)
         log.info("Re-organize after split at height {}", splitPoint.height)
         log.info("Old chain head: {}", head.header.hashAsString)
@@ -772,7 +787,7 @@ constructor(context: Context, wallets: List<Wallet>,
             }
         }
         // Update the pointer to the best known block.
-        setChainHead(storedNewHead)
+        chainHead = storedNewHead
     }
 
     enum class NewBlockType {
@@ -780,13 +795,7 @@ constructor(context: Context, wallets: List<Wallet>,
         SIDE_CHAIN
     }
 
-    @Throws(BlockStoreException::class)
-    protected fun setChainHead(chainHead: StoredBlock) {
-        doSetChainHead(chainHead)
-        synchronized(chainHeadLock) {
-            this.chainHead = chainHead
-        }
-    }
+
 
     /**
      * For each block in orphanBlocks, see if we can now fit it on top of the chain and if so, do so.
@@ -807,15 +816,15 @@ constructor(context: Context, wallets: List<Wallet>,
             while (iter.hasNext()) {
                 val orphanBlock = iter.next()
                 // Look up the blocks previous.
-                val prev = getStoredBlockInCurrentScope(orphanBlock.block.prevBlockHash)
+                val prev = getStoredBlockInCurrentScope(orphanBlock.block.getPrevBlockHash())
                 if (prev == null) {
                     // This is still an unconnected/orphan block.
-                    log.debug("Orphan block {} is not connectable right now", orphanBlock.block.hash)
+                    log.debug("Orphan block {} is not connectable right now", orphanBlock.block.getHash())
                     continue
                 }
                 // Otherwise we can connect it now.
                 // False here ensures we don't recurse infinitely downwards when connecting huge chains.
-                log.info("Connected orphan {}", orphanBlock.block.hash)
+                log.info("Connected orphan {}", orphanBlock.block.getHash())
                 add(orphanBlock.block, false, orphanBlock.filteredTxHashes, orphanBlock.filteredTxn)
                 iter.remove()
                 blocksConnectedThisRound++
@@ -826,15 +835,7 @@ constructor(context: Context, wallets: List<Wallet>,
         } while (blocksConnectedThisRound > 0)
     }
 
-    /**
-     * Returns the block at the head of the current best chain. This is the block which represents the greatest
-     * amount of cumulative work done.
-     */
-    fun getChainHead(): StoredBlock {
-        synchronized(chainHeadLock) {
-            return chainHead
-        }
-    }
+
 
     /**
      * An orphan block is one that does not connect to the chain anywhere (ie we can't find its parent, therefore
@@ -847,9 +848,9 @@ constructor(context: Context, wallets: List<Wallet>,
     fun getOrphanRoot(from: Sha256Hash): Block? {
         lock.lock()
         try {
-            var cursor: OrphanBlock? = orphanBlocks[from] ?: return null
-            var tmp: OrphanBlock
-            while ((tmp = orphanBlocks[cursor!!.block.prevBlockHash]) != null) {
+            var cursor: OrphanBlock? = orphanBlocks.get(from) ?: return null
+            var tmp: OrphanBlock? = null
+            while ( { tmp = orphanBlocks.get(cursor?.block?.getPrevBlockHash()); tmp }() != null) {
                 cursor = tmp
             }
             return cursor!!.block
@@ -996,14 +997,18 @@ constructor(context: Context, wallets: List<Wallet>,
          * Gets the median timestamp of the last 11 blocks
          */
         @Throws(BlockStoreException::class)
-        fun getMedianTimestampOfRecentBlocks(storedBlock: StoredBlock,
-                                             store: BlockStore): Long {
-            var storedBlock = storedBlock
+        fun getMedianTimestampOfRecentBlocks(storedBlock: StoredBlock, store: BlockStore): Long {
+
+
             val timestamps = LongArray(11)
             var unused = 9
             timestamps[10] = storedBlock.header.timeSeconds
-            while (unused >= 0 && (storedBlock = storedBlock.getPrev(store)) != null)
-                timestamps[unused--] = storedBlock.header.timeSeconds
+            var prevBlock: StoredBlock? = storedBlock.getPrev(store)
+
+            while (unused >= 0 && prevBlock != null) {
+                timestamps[unused--] = prevBlock.header.timeSeconds
+                prevBlock = prevBlock.getPrev(store)
+            }
 
             Arrays.sort(timestamps, unused + 1, 11)
             return timestamps[unused + (11 - unused) / 2]
@@ -1064,9 +1069,13 @@ constructor(context: Context, wallets: List<Wallet>,
             for (tx in transactions) {
                 try {
                     falsePositives.remove(tx.hash)
-                    if (clone)
-                        tx = tx.params!!.getDefaultSerializer().makeTransaction(tx.bitcoinSerialize())
-                    listener.receiveFromBlock(tx, block, blockType, relativityOffset++)
+                    if (clone) {
+                        val tx1= tx.params!!.defaultSerializer!!.makeTransaction(tx.bitcoinSerialize())
+                        listener.receiveFromBlock(tx1, block, blockType, relativityOffset++)
+                    }else{
+                        listener.receiveFromBlock(tx, block, blockType, relativityOffset++)
+                    }
+
                 } catch (e: ScriptException) {
                     // We don't want scripts we don't understand to break the block chain so just note that this tx was
                     // not scanned here and continue.

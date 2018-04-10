@@ -39,7 +39,7 @@ class BlockChain
 @Throws(BlockStoreException::class)
 constructor(params: Context, wallets: List<Wallet>,
             /** Keeps a map of block hashes to StoredBlocks.  */
-            protected val blockStore: BlockStore) : AbstractBlockChain(params, wallets, blockStore) {
+           override val blockStore: BlockStore) : AbstractBlockChain(params, wallets, blockStore) {
 
     /**
      *
@@ -113,7 +113,7 @@ constructor(params: Context, wallets: List<Wallet>,
 
             // Modify store directly
             blockStore.put(newChainHead)
-            this.setChainHead(newChainHead)
+            this.chainHead = newChainHead
         } finally {
             lock.unlock()
         }

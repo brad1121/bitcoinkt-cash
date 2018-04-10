@@ -44,20 +44,20 @@ abstract class ChildMessage : Message {
     constructor(params: NetworkParameters) : super(params) {}
 
     @Throws(ProtocolException::class)
-    constructor(params: NetworkParameters, payload: ByteArray, offset: Int, protocolVersion: Int) : super(params, payload, offset, protocolVersion) {
+    constructor(params: NetworkParameters?, payload: ByteArray?, offset: Int, protocolVersion: Int) : super(params, payload, offset, protocolVersion) {
     }
 
     @Throws(ProtocolException::class)
-    constructor(params: NetworkParameters, payload: ByteArray, offset: Int, protocolVersion: Int, parent: Message, setSerializer: MessageSerializer, length: Int) : super(params, payload, offset, protocolVersion, setSerializer, length) {
+    constructor(params: NetworkParameters?, payload: ByteArray?, offset: Int, protocolVersion: Int, parent: Message, setSerializer: MessageSerializer?, length: Int) : super(params, payload, offset, protocolVersion, setSerializer, length) {
         this.parent = parent
     }
 
     @Throws(ProtocolException::class)
-    constructor(params: NetworkParameters, payload: ByteArray, offset: Int) : super(params, payload, offset) {
+    constructor(params: NetworkParameters?, payload: ByteArray?, offset: Int) : super(params, payload, offset) {
     }
 
     @Throws(ProtocolException::class)
-    constructor(params: NetworkParameters, payload: ByteArray, offset: Int, parent: Message?, setSerializer: MessageSerializer, length: Int) : super(params, payload, offset, setSerializer, length) {
+    constructor(params: NetworkParameters?, payload: ByteArray?, offset: Int, parent: Message?, setSerializer: MessageSerializer, length: Int) : super(params!!, payload!!, offset, setSerializer, length) {
         this.parent = parent
     }
 

@@ -69,7 +69,7 @@ class PeerAddress : ChildMessage {
      * @throws ProtocolException
      */
     @Throws(ProtocolException::class)
-    constructor(params: NetworkParameters, payload: ByteArray, offset: Int, protocolVersion: Int, parent: Message, serializer: MessageSerializer) : super(params, payload, offset, protocolVersion, parent, serializer, Message.UNKNOWN_LENGTH) {
+    constructor(params: NetworkParameters?, payload: ByteArray?, offset: Int, protocolVersion: Int, parent: Message, serializer: MessageSerializer?) : super(params, payload, offset, protocolVersion, parent, serializer, Message.UNKNOWN_LENGTH) {
     }
 
     /**

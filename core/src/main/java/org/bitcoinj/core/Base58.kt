@@ -18,6 +18,7 @@ package org.bitcoinj.core
 
 import java.math.BigInteger
 import java.util.Arrays
+import javax.print.DocFlavor
 
 /**
  * Base58 is a way to encode Bitcoin addresses (or arbitrary data) as alphanumeric strings.
@@ -49,14 +50,14 @@ import java.util.Arrays
  * numbers), and finally represent the resulting base-58 digits as alphanumeric ASCII characters.
  */
 object Base58 {
-    val ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz".toCharArray()
-    private val ENCODED_ZERO = ALPHABET[0]
-    private val INDEXES = IntArray(128)
+    val ALPHABET: CharArray = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz".toCharArray()
+    private val ENCODED_ZERO: Char = ALPHABET[0]
+    private val INDEXES: IntArray = IntArray(128)
 
     init {
         Arrays.fill(INDEXES, -1)
         for (i in ALPHABET.indices) {
-            INDEXES[ALPHABET[i]] = i
+            INDEXES[ALPHABET[i].toInt()] = i
         }
     }
 
@@ -82,7 +83,7 @@ object Base58 {
         var outputStart = encoded.size
         var inputStart = zeros
         while (inputStart < input.size) {
-            encoded[--outputStart] = ALPHABET[divmod(input, inputStart, 256, 58)]
+            encoded[--outputStart] = ALPHABET[divmod(input, inputStart, 256, 58).toInt()]
             if (input[inputStart].toInt() == 0) {
                 ++inputStart // optimization - skip leading zeros
             }
@@ -114,7 +115,7 @@ object Base58 {
         val input58 = ByteArray(input.length)
         for (i in 0 until input.length) {
             val c = input[i]
-            val digit = if (c.toInt() < 128) INDEXES[c] else -1
+            val digit = if (c.toInt() < 128) INDEXES[c.toInt()] else -1
             if (digit < 0) {
                 throw AddressFormatException("Illegal character $c at position $i")
             }

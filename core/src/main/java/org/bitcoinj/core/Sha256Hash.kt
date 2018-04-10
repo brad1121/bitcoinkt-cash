@@ -237,7 +237,7 @@ class Sha256Hash : Serializable, Comparable<Sha256Hash> {
          * @return the double-hash (in big-endian order)
          */
         @JvmOverloads
-        fun hashTwice(input: ByteArray, offset: Int = 0, length: Int = input.size): ByteArray {
+        fun hashTwice(input: ByteArray?, offset: Int = 0, length: Int = input.size): ByteArray {
             val digest = newDigest()
             digest.update(input, offset, length)
             return digest.digest(digest.digest())

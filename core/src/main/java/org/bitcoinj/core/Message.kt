@@ -50,7 +50,7 @@ abstract class Message {
 
     var isRecached = false
         protected set
-    protected var serializer: MessageSerializer
+    protected var serializer: MessageSerializer?
 
     protected var protocolVersion: Int = 0
 
@@ -67,7 +67,7 @@ abstract class Message {
      * This method is a NOP for all classes except Block and Transaction.  It is only declared in Message
      * so BitcoinSerializer can avoid 2 instanceof checks + a casting.
      */
-    val hash: Sha256Hash
+    open val hash: Sha256Hash?
         get() = throw UnsupportedOperationException()
 
     /**
@@ -86,7 +86,7 @@ abstract class Message {
 
     protected constructor(params: NetworkParameters) {
         this.params = params
-        serializer = params.getDefaultSerializer()
+        serializer = params.defaultSerializer
     }
 
     /**
@@ -101,7 +101,7 @@ abstract class Message {
      * @throws ProtocolException
      */
     @Throws(ProtocolException::class)
-    @JvmOverloads protected constructor(params: NetworkParameters, payload: ByteArray, offset: Int, protocolVersion: Int = params.getProtocolVersionNum(NetworkParameters.ProtocolVersion.CURRENT), serializer: MessageSerializer = params.getDefaultSerializer(), length: Int = UNKNOWN_LENGTH) {
+    @JvmOverloads protected constructor(params: NetworkParameters?, payload: ByteArray?, offset: Int, protocolVersion: Int = params!!.getProtocolVersionNum(NetworkParameters.ProtocolVersion.CURRENT), serializer: MessageSerializer? = params!!.defaultSerializer, length: Int = UNKNOWN_LENGTH) {
         this.serializer = serializer
         this.protocolVersion = protocolVersion
         this.params = params
@@ -120,11 +120,13 @@ abstract class Message {
             selfCheck(payload, offset)
         }
 
-        if (!serializer.isParseRetainMode)
-            this.payload = null
+        if (serializer != null) {
+            if (!serializer.isParseRetainMode)
+                this.payload = null
+        }
     }
 
-    private fun selfCheck(payload: ByteArray, offset: Int) {
+    private fun selfCheck(payload: ByteArray?, offset: Int) {
         if (this !is VersionMessage) {
             val payloadBytes = ByteArray(cursor - offset)
             System.arraycopy(payload, offset, payloadBytes, 0, cursor - offset)
@@ -213,7 +215,7 @@ abstract class Message {
             if (offset == 0 && length == payload!!.size) {
                 // Cached byte array is the entire message with no extras so we can return as is and avoid an array
                 // copy.
-                return payload
+                return payload as ByteArray
             }
 
             val buf = ByteArray(length)
@@ -229,7 +231,7 @@ abstract class Message {
             // Cannot happen, we are serializing to a memory stream.
         }
 
-        if (serializer.isParseRetainMode) {
+        if (serializer!!.isParseRetainMode) {
             // A free set of steak knives!
             // If there happens to be a call to this method we gain an opportunity to recache
             // the byte array and in this case it contains no bytes from parent messages.
@@ -243,7 +245,7 @@ abstract class Message {
             offset = 0
             isRecached = true
             length = payload!!.size
-            return payload
+            return payload as ByteArray
         }
         // Record length. If this Message wasn't parsed from a byte stream it won't have length field
         // set (except for static length message types).  Setting it makes future streaming more efficient
@@ -366,7 +368,7 @@ abstract class Message {
     private fun readObject(`in`: java.io.ObjectInputStream) {
         `in`.defaultReadObject()
         if (null != params) {
-            this.serializer = params!!.getDefaultSerializer()
+            this.serializer = params!!.defaultSerializer
         }
     }
 

@@ -70,8 +70,16 @@ class Block : Message {
     internal var transactions: MutableList<Transaction>? = null
 
     /** Stores the hash of the block. If null, getHash() will recalculate it.  */
-    private var hash: Sha256Hash? = null
-
+    override var hash: Sha256Hash? = null
+    /**
+     * Returns the hash of the block (which for a valid, solved block should be
+     * below the target). Big endian.
+     */
+        get(): Sha256Hash? {
+            if (hash == null)
+                hash = calculateHash()
+            return hash as Sha256Hash
+        }
     @get:VisibleForTesting
     private var isHeaderBytesValid: Boolean = false
 
@@ -83,14 +91,19 @@ class Block : Message {
     // MAX_BLOCK_SIZE must be compared to the optimal encoding, not the actual encoding, so when parsing, we keep track
     // of the size of the ideal encoding in addition to the actual message size (which Message needs)
     var optimalEncodingMessageSize: Int = 0
-
+        get(): Int {
+            if (optimalEncodingMessageSize != 0)
+                return optimalEncodingMessageSize
+            optimalEncodingMessageSize = bitcoinSerialize().size
+            return optimalEncodingMessageSize
+        }
     /**
      * Returns the hash of the block (which for a valid, solved block should be below the target) in the form seen on
      * the block explorer. If you call this on block 1 in the mainnet chain
      * you will get "00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048".
      */
     val hashAsString: String
-        get() = getHash().toString()
+        get() = hash.toString()
 
     /**
      * Returns the work represented by this block.
@@ -282,14 +295,14 @@ class Block : Message {
         optimalEncodingMessageSize += VarInt.sizeOf(numTransactions.toLong())
         transactions = ArrayList(numTransactions)
         for (i in 0 until numTransactions) {
-            val tx = Transaction(params, payload, cursor, this, serializer, Message.UNKNOWN_LENGTH)
+            val tx = Transaction(params, payload, cursor, this, serializer!!, Message.UNKNOWN_LENGTH)
             // Label the transaction as coming from the P2P network, so code that cares where we first saw it knows.
-            tx.confidence.source = TransactionConfidence.Source.NETWORK
+            tx.getConfidence().source = TransactionConfidence.Source.NETWORK
             transactions!!.add(tx)
             cursor += tx.messageSize
-            optimalEncodingMessageSize += tx.optimalEncodingMessageSize
+            optimalEncodingMessageSize += tx.getOptimalEncodingMessageSize()
         }
-        isTransactionBytesValid = serializer.isParseRetainMode
+        isTransactionBytesValid = serializer!!.isParseRetainMode
     }
 
     @Throws(ProtocolException::class)
@@ -303,19 +316,14 @@ class Block : Message {
         difficultyTarget = readUint32()
         nonce = readUint32()
         hash = Sha256Hash.wrapReversed(Sha256Hash.hashTwice(payload, offset, cursor - offset))
-        isHeaderBytesValid = serializer.isParseRetainMode
+        isHeaderBytesValid = serializer!!.isParseRetainMode
 
         // transactions
         parseTransactions(offset + HEADER_SIZE)
         length = cursor - offset
     }
 
-    fun getOptimalEncodingMessageSize(): Int {
-        if (optimalEncodingMessageSize != 0)
-            return optimalEncodingMessageSize
-        optimalEncodingMessageSize = bitcoinSerialize().size
-        return optimalEncodingMessageSize
-    }
+
 
     // default for testing
     @Throws(IOException::class)
@@ -367,7 +375,7 @@ class Block : Message {
         if (isHeaderBytesValid && isTransactionBytesValid) {
             Preconditions.checkNotNull(payload, "Bytes should never be null if headerBytesValid && transactionBytesValid")
             if (length == payload!!.size) {
-                return payload
+                return payload as ByteArray
             } else {
                 // byte array is offset so copy out the correct range.
                 val buf = ByteArray(length)
@@ -457,19 +465,11 @@ class Block : Message {
 
     }
 
-    /**
-     * Returns the hash of the block (which for a valid, solved block should be
-     * below the target). Big endian.
-     */
-    fun getHash(): Sha256Hash {
-        if (hash == null)
-            hash = calculateHash()
-        return hash
-    }
+
 
     /** Returns a copy of the block, but without any transactions.  */
     fun cloneAsHeader(): Block {
-        val block = Block(params, BLOCK_VERSION_GENESIS)
+        val block = Block(params!!, BLOCK_VERSION_GENESIS)
         copyBitcoinHeaderTo(block)
         return block
     }
@@ -483,7 +483,7 @@ class Block : Message {
         block.timeSeconds = timeSeconds
         block.difficultyTarget = difficultyTarget
         block.transactions = null
-        block.hash = getHash()
+        block.hash = hash
     }
 
     /**
@@ -551,7 +551,7 @@ class Block : Message {
         // field is of the right value. This requires us to have the preceeding blocks.
         val target = difficultyTargetAsInteger
 
-        val h = getHash().toBigInteger()
+        val h = hash!!.toBigInteger()
         return if (h.compareTo(target) > 0) {
             // Proof of work check failed!
             if (throwException)
@@ -630,7 +630,7 @@ class Block : Message {
         val tree = ArrayList<ByteArray>()
         // Start by adding all the hashes of the transactions as leaves of the tree.
         for (t in transactions!!) {
-            tree.add(t.hash.bytes)
+            tree.add(t.hash!!.bytes)
         }
         var levelOffset = 0 // Offset in the list where the currently processed level starts.
         // Step through each level, stopping when we reach the root (levelSize == 1).
@@ -644,7 +644,7 @@ class Block : Message {
                 val right = Math.min(left + 1, levelSize - 1)
                 val leftBytes = Utils.reverseBytes(tree[levelOffset + left])
                 val rightBytes = Utils.reverseBytes(tree[levelOffset + right])
-                tree.add(Utils.reverseBytes(hashTwice(leftBytes, 0, 32, rightBytes, 0, 32)))
+                tree.add(Utils.reverseBytes(Sha256Hash.hashTwice(leftBytes, 0, 32, rightBytes, 0, 32)))
                 left += 2
             }
             // Move to the next level.
@@ -712,7 +712,7 @@ class Block : Message {
         // transactions that reference spent or non-existant inputs.
         if (transactions!!.isEmpty())
             throw VerificationException("Block had no transactions")
-        if (this.getOptimalEncodingMessageSize() > MAX_BLOCK_SIZE)
+        if (this.optimalEncodingMessageSize > MAX_BLOCK_SIZE)
             throw VerificationException("Block larger than MAX_BLOCK_SIZE")
         checkTransactions(height, flags)
         checkMerkleRoot()
@@ -737,11 +737,11 @@ class Block : Message {
 
     override fun equals(o: Any?): Boolean {
         if (this === o) return true
-        return if (o == null || javaClass != o.javaClass) false else getHash() == (o as Block).getHash()
+        return if (o == null || javaClass != o.javaClass) false else hash == (o as Block).hash
     }
 
     override fun hashCode(): Int {
-        return getHash().hashCode()
+        return hash!!.hashCode()
     }
 
     /**
@@ -753,7 +753,7 @@ class Block : Message {
             unCacheHeader()
             merkleRoot = calculateMerkleRoot()
         }
-        return merkleRoot
+        return merkleRoot as Sha256Hash
     }
 
     /** Exists only for unit testing.  */
@@ -774,7 +774,7 @@ class Block : Message {
         if (transactions == null) {
             transactions = ArrayList()
         }
-        t.setParent(this)
+        t.parent = (this)
         if (runSanityChecks && transactions!!.size == 0 && !t.isCoinBase)
             throw RuntimeException("Attempted to add a non-coinbase transaction as the first transaction: " + t)
         else if (runSanityChecks && transactions!!.size > 0 && t.isCoinBase)
@@ -852,7 +852,7 @@ class Block : Message {
     internal fun addCoinbaseTransaction(pubKeyTo: ByteArray, value: Coin, height: Int) {
         unCacheTransactions()
         transactions = ArrayList()
-        val coinbase = Transaction(params)
+        val coinbase = Transaction(params!!)
         val inputBuilder = ScriptBuilder()
 
         if (height >= Block.BLOCK_HEIGHT_GENESIS) {
@@ -865,12 +865,12 @@ class Block : Message {
         //
         // Here we will do things a bit differently so a new address isn't needed every time. We'll put a simple
         // counter in the scriptSig so every transaction has a different hash.
-        coinbase.addInput(TransactionInput(params, coinbase,
+        coinbase.addInput(TransactionInput(params!!, coinbase,
                 inputBuilder.build().program))
-        coinbase.addOutput(TransactionOutput(params, coinbase, value,
+        coinbase.addOutput(TransactionOutput(params!!, coinbase, value,
                 ScriptBuilder.createOutputScript(ECKey.fromPublicOnly(pubKeyTo)).program))
         transactions!!.add(coinbase)
-        coinbase.setParent(this)
+        coinbase.parent = (this)
         coinbase.length = coinbase.unsafeBitcoinSerialize().size
         adjustLength(transactions!!.size, coinbase.length)
     }
@@ -880,7 +880,7 @@ class Block : Message {
      */
     @VisibleForTesting
     fun createNextBlock(to: Address, version: Long, time: Long, blockHeight: Int): Block {
-        return createNextBlock(to, version, null, time, pubkeyForTesting, FIFTY_COINS, blockHeight)
+        return createNextBlock(to, version, null, time, pubkeyForTesting, Coin.FIFTY_COINS, blockHeight)
     }
 
     /**
@@ -893,18 +893,18 @@ class Block : Message {
                                  prevOut: TransactionOutPoint?, time: Long,
                                  pubKey: ByteArray, coinbaseValue: Coin,
                                  height: Int): Block {
-        val b = Block(params, version)
+        val b = Block(params!!, version)
         b.setDifficultyTarget(difficultyTarget)
         b.addCoinbaseTransaction(pubKey, coinbaseValue, height)
 
         if (to != null) {
             // Add a transaction paying 50 coins to the "to" address.
-            val t = Transaction(params)
-            t.addOutput(TransactionOutput(params, t, FIFTY_COINS, to))
+            val t = Transaction(params!!)
+            t.addOutput(TransactionOutput(params!!, t, Coin.FIFTY_COINS, to))
             // The input does not really need to be a valid signature, as long as it has the right general form.
             val input: TransactionInput
             if (prevOut == null) {
-                input = TransactionInput(params, t, Script.createInputScript(EMPTY_BYTES, EMPTY_BYTES))
+                input = TransactionInput(params!!, t, Script.createInputScript(EMPTY_BYTES, EMPTY_BYTES))
                 // Importantly the outpoint hash cannot be zero as that's how we detect a coinbase transaction in isolation
                 // but it must be unique to avoid 'different' transactions looking the same.
                 val counter = ByteArray(32)
@@ -912,13 +912,13 @@ class Block : Message {
                 counter[1] = (txCounter++ shr 8).toByte()
                 input.outpoint!!.hash = Sha256Hash.wrap(counter)
             } else {
-                input = TransactionInput(params, t, Script.createInputScript(EMPTY_BYTES, EMPTY_BYTES), prevOut)
+                input = TransactionInput(params!!, t, Script.createInputScript(EMPTY_BYTES, EMPTY_BYTES), prevOut)
             }
             t.addInput(input)
             b.addTransaction(t)
         }
 
-        b.setPrevBlockHash(getHash())
+        b.setPrevBlockHash(hash!!)
         // Don't let timestamp go backwards
         if (timeSeconds >= time)
             b.setTime(timeSeconds + 1)
@@ -939,12 +939,12 @@ class Block : Message {
 
     @VisibleForTesting
     fun createNextBlock(to: Address?, prevOut: TransactionOutPoint): Block {
-        return createNextBlock(to, BLOCK_VERSION_GENESIS, prevOut, timeSeconds + 5, pubkeyForTesting, FIFTY_COINS, BLOCK_HEIGHT_UNKNOWN)
+        return createNextBlock(to, BLOCK_VERSION_GENESIS, prevOut, timeSeconds + 5, pubkeyForTesting, Coin.FIFTY_COINS, BLOCK_HEIGHT_UNKNOWN)
     }
 
     @VisibleForTesting
     @JvmOverloads
-    fun createNextBlock(to: Address?, value: Coin = FIFTY_COINS): Block {
+    fun createNextBlock(to: Address?, value: Coin = Coin.FIFTY_COINS): Block {
         return createNextBlock(to, BLOCK_VERSION_GENESIS, null, timeSeconds + 5, pubkeyForTesting, value, BLOCK_HEIGHT_UNKNOWN)
     }
 
@@ -961,7 +961,7 @@ class Block : Message {
     @VisibleForTesting
     internal fun createNextBlockWithCoinbase(version: Long, pubKey: ByteArray, height: Int): Block {
         return createNextBlock(null, version, null as TransactionOutPoint?,
-                Utils.currentTimeSeconds(), pubKey, FIFTY_COINS, height)
+                Utils.currentTimeSeconds(), pubKey, Coin.FIFTY_COINS, height)
     }
 
     /**

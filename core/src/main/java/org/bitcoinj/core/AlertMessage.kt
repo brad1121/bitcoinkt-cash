@@ -112,7 +112,7 @@ constructor(params: NetworkParameters, payloadBytes: ByteArray) : Message(params
      * doesn't verify, because that would allow arbitrary attackers to spam your users.
      */
     val isSignatureValid: Boolean
-        get() = ECKey.verify(Sha256Hash.hashTwice(content), signature, params!!.alertSigningKey)
+        get() = ECKey.verify(Sha256Hash.hashTwice(content), signature!!, params!!.alertSigningKey)
 
     override fun toString(): String {
         return "ALERT: " + statusBar!!

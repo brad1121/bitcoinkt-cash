@@ -17,6 +17,7 @@
 
 package org.bitcoinj.core
 
+import org.bitcoinj.core.Utils.join
 import java.io.IOException
 import java.io.OutputStream
 import java.util.ArrayList
@@ -62,11 +63,11 @@ class AddressMessage : Message {
     }
 
     @Throws(ProtocolException::class)
-    internal constructor(params: NetworkParameters, payload: ByteArray, offset: Int) : super(params, payload, offset, params.getDefaultSerializer(), Message.UNKNOWN_LENGTH) {
+    internal constructor(params: NetworkParameters, payload: ByteArray, offset: Int) : super(params, payload, offset, params.defaultSerializer, Message.UNKNOWN_LENGTH) {
     }
 
     @Throws(ProtocolException::class)
-    internal constructor(params: NetworkParameters, payload: ByteArray) : super(params, payload, 0, params.getDefaultSerializer(), Message.UNKNOWN_LENGTH) {
+    internal constructor(params: NetworkParameters, payload: ByteArray) : super(params, payload, 0, params.defaultSerializer, Message.UNKNOWN_LENGTH) {
     }
 
     @Throws(ProtocolException::class)
@@ -105,7 +106,7 @@ class AddressMessage : Message {
 
     fun addAddress(address: PeerAddress) {
         unCache()
-        address.setParent(this)
+        address.parent = this
         addresses!!.add(address)
         if (length == Message.UNKNOWN_LENGTH)
             messageSize
@@ -116,7 +117,7 @@ class AddressMessage : Message {
     fun removeAddress(index: Int) {
         unCache()
         val address = addresses!!.removeAt(index)
-        address.setParent(null)
+        address.parent = null
         if (length == Message.UNKNOWN_LENGTH)
             messageSize
         else
@@ -124,7 +125,7 @@ class AddressMessage : Message {
     }
 
     override fun toString(): String {
-        return "addr: " + Utils.join(addresses)
+        return "addr: " + Utils.join(this!!.addresses!!)
     }
 
     companion object {

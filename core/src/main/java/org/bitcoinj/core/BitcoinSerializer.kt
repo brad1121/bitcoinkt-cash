@@ -28,7 +28,7 @@ import java.nio.BufferUnderflowException
 import java.nio.ByteBuffer
 import java.util.HashMap
 
-import org.bitcoinj.core.Utils.*
+import org.bitcoinj.core.Utils
 
 /**
  *
@@ -67,7 +67,7 @@ class BitcoinSerializer
     @Throws(IOException::class)
     override fun serialize(name: String, message: ByteArray, out: OutputStream) {
         val header = ByteArray(4 + COMMAND_LEN + 4 + 4 /* checksum */)
-        uint32ToByteArrayBE(parameters.packetMagic, header, 0)
+        Utils.uint32ToByteArrayBE(parameters.packetMagic, header, 0)
 
         // The header array is initialized to zero by Java so we don't have to worry about
         // NULL terminating the string here.
@@ -85,7 +85,7 @@ class BitcoinSerializer
         out.write(message)
 
         if (log.isDebugEnabled())
-            log.debug("Sending {} message: {}", name, HEX.encode(header) + HEX.encode(message))
+            log.debug("Sending {} message: {}", name, Utils.HEX.encode(header) + Utils.HEX.encode(message))
     }
 
     /**
@@ -146,19 +146,19 @@ class BitcoinSerializer
         if (header.checksum[0] != hash[0] || header.checksum[1] != hash[1] ||
                 header.checksum[2] != hash[2] || header.checksum[3] != hash[3]) {
             throw ProtocolException("Checksum failed to verify, actual " +
-                    HEX.encode(hash) +
-                    " vs " + HEX.encode(header.checksum))
+                    Utils.HEX.encode(hash) +
+                    " vs " + Utils.HEX.encode(header.checksum))
         }
 
         if (log.isDebugEnabled()) {
             log.debug("Received {} byte '{}' message: {}", header.size, header.command,
-                    HEX.encode(payloadBytes))
+                    Utils.HEX.encode(payloadBytes))
         }
 
         try {
             return makeMessage(header.command, header.size, payloadBytes, hash, header.checksum)
         } catch (e: Exception) {
-            throw ProtocolException("Error deserializing message " + HEX.encode(payloadBytes) + "\n", e)
+            throw ProtocolException("Error deserializing message " + Utils.HEX.encode(payloadBytes) + "\n", e)
         }
 
     }
@@ -292,7 +292,7 @@ class BitcoinSerializer
             val b = `in`.get()
             // We're looking for a run of bytes that is the same as the packet magic but we want to ignore partial
             // magics that aren't complete. So we keep track of where we're up to with magicCursor.
-            val expectedByte = (0xFF and parameters.packetMagic.ushr(magicCursor * 8)).toByte()
+            val expectedByte = (0xFF and parameters.packetMagic.ushr(magicCursor * 8).toInt()).toByte()
             if (b == expectedByte) {
                 magicCursor--
                 if (magicCursor < 0) {
@@ -332,7 +332,7 @@ class BitcoinSerializer
             command = Utils.toString(commandBytes, "US-ASCII")
             cursor = COMMAND_LEN
 
-            size = readUint32(header, cursor).toInt()
+            size = Utils.readUint32(header, cursor).toInt()
             cursor += 4
 
             if (size > Message.MAX_SIZE || size < 0)

@@ -29,6 +29,8 @@ import java.util.Arrays
 
 import com.google.common.base.Preconditions.checkArgument
 import java.lang.Math.*
+import kotlin.experimental.and
+import kotlin.experimental.or
 
 /**
  *
@@ -172,7 +174,7 @@ class BloomFilter : Message {
      */
     @Synchronized operator fun contains(`object`: ByteArray?): Boolean {
         for (i in 0 until hashFuncs) {
-            if (!Utils.checkBitLE(data!!, murmurHash3(data, nTweak, i, `object`!!)))
+            if (!Utils.checkBitLE(data!!, murmurHash3(data!!, nTweak, i.toInt(), `object`!!)))
                 return false
         }
         return true
@@ -182,14 +184,14 @@ class BloomFilter : Message {
     @Synchronized
     fun insert(`object`: ByteArray) {
         for (i in 0 until hashFuncs)
-            Utils.setBitLE(data!!, murmurHash3(data, nTweak, i, `object`))
+            Utils.setBitLE(data!!, murmurHash3(data!!, nTweak, i.toInt(), `object`))
     }
 
     /** Inserts the given key and equivalent hashed form (for the address).  */
     @Synchronized
     fun insert(key: ECKey) {
         insert(key.pubKey)
-        insert(key.pubKeyHash)
+        insert(key.pubKeyHash!!)
     }
 
     /**
@@ -215,7 +217,7 @@ class BloomFilter : Message {
                     filter.hashFuncs == this.hashFuncs &&
                     filter.nTweak == this.nTweak)
             for (i in data!!.indices)
-                this.data[i] = this.data[i] or filter.data!![i]
+                this.data!![i] = this.data!![i] or filter.data!![i]
         } else {
             this.data = byteArrayOf(0xff.toByte())
         }
@@ -247,14 +249,14 @@ class BloomFilter : Message {
         val bits = ByteArray(Math.ceil(txns.size / 8.0).toInt())
         for (i in txns.indices) {
             val tx = txns[i]
-            txHashes.add(tx.hash)
+            txHashes.add(tx.hash!!)
             if (applyAndUpdate(tx)) {
                 Utils.setBitLE(bits, i)
                 matched.add(tx)
             }
         }
-        val pmt = PartialMerkleTree.buildFromLeaves(block.params, bits, txHashes)
-        val filteredBlock = FilteredBlock(block.params, block.cloneAsHeader(), pmt)
+        val pmt = PartialMerkleTree.buildFromLeaves(block.params!!, bits, txHashes)
+        val filteredBlock = FilteredBlock(block.params!!, block.cloneAsHeader(), pmt)
         for (transaction in matched)
             filteredBlock.provideTransaction(transaction)
         return filteredBlock
@@ -262,12 +264,12 @@ class BloomFilter : Message {
 
     @Synchronized
     fun applyAndUpdate(tx: Transaction): Boolean {
-        if (contains(tx.hash.bytes))
+        if (contains(tx.hash!!.bytes))
             return true
         var found = false
         val flag = updateFlag
-        for (output in tx.outputs) {
-            val script = output.scriptPubKey
+        for (output in tx.getOutputs()) {
+            val script = output.getScriptPubKey()
             for (chunk in script.chunks) {
                 if (!chunk.isPushData)
                     continue
@@ -280,11 +282,11 @@ class BloomFilter : Message {
             }
         }
         if (found) return true
-        for (input in tx.inputs) {
+        for (input in tx.getInputs()) {
             if (contains(input.outpoint!!.unsafeBitcoinSerialize())) {
                 return true
             }
-            for (chunk in input.scriptSig.chunks) {
+            for (chunk in input.getScriptSig().chunks) {
                 if (chunk.isPushData && contains(chunk.data))
                     return true
             }
@@ -328,10 +330,10 @@ class BloomFilter : Message {
             // body
             var i = 0
             while (i < numBlocks) {
-                var k1 = `object`[i] and 0xFF or
-                        (`object`[i + 1] and 0xFF shl 8) or
-                        (`object`[i + 2] and 0xFF shl 16) or
-                        (`object`[i + 3] and 0xFF shl 24)
+                var k1 = `object`[i] and  0xFF.toByte() or
+                        (`object`[i + 1] and 0xFF.toByte() shl 8) or
+                        (`object`[i + 2] and 0xFF.toByte() shl 16) or
+                        (`object`[i + 3] and 0xFF.toByte() shl 24)
 
                 k1 *= c1
                 k1 = rotateLeft32(k1, 15)
