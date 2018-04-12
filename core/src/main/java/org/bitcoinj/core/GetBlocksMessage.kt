@@ -32,8 +32,11 @@ import java.util.ArrayList
 open class GetBlocksMessage : Message {
 
     protected var version: Long = 0
-    protected var locator: MutableList<Sha256Hash>
-    var stopHash: Sha256Hash
+    protected var locator: MutableList<Sha256Hash>? = null
+        get(): MutableList<Sha256Hash>? {
+        return locator
+    }
+    lateinit var stopHash: Sha256Hash
         protected set
 
     constructor(params: NetworkParameters, locator: MutableList<Sha256Hash>, stopHash: Sha256Hash) : super(params) {
@@ -56,17 +59,15 @@ open class GetBlocksMessage : Message {
         length = cursor - offset + (startCount + 1) * 32
         locator = ArrayList(startCount)
         for (i in 0 until startCount) {
-            locator.add(readHash())
+            locator!!.add(readHash())
         }
         stopHash = readHash()
     }
 
-    fun getLocator(): List<Sha256Hash> {
-        return locator
-    }
+
 
     override fun toString(): String {
-        return "getblocks: " + Utils.join(locator)
+        return "getblocks: " + Utils.join(locator!!)
     }
 
     @Throws(IOException::class)
@@ -76,8 +77,8 @@ open class GetBlocksMessage : Message {
         // Then a vector of block hashes. This is actually a "block locator", a set of block
         // identifiers that spans the entire chain with exponentially increasing gaps between
         // them, until we end up at the genesis block. See CBlockLocator::Set()
-        stream.write(VarInt(locator.size.toLong()).encode())
-        for (hash in locator) {
+        stream.write(VarInt(locator!!.size.toLong()).encode())
+        for (hash in locator!!) {
             // Have to reverse as wire format is little endian.
             stream.write(hash.reversedBytes)
         }
@@ -90,12 +91,12 @@ open class GetBlocksMessage : Message {
         if (o == null || javaClass != o.javaClass) return false
         val other = o as GetBlocksMessage?
         return version == other!!.version && stopHash == other.stopHash &&
-                locator.size == other.locator.size && locator.containsAll(other.locator) // ignores locator ordering
+                locator!!.size == other.locator!!.size && locator!!.containsAll(other.locator!!) // ignores locator ordering
     }
 
     override fun hashCode(): Int {
         var hashCode = version.toInt() xor "getblocks".hashCode() xor stopHash.hashCode()
-        for (aLocator in locator) hashCode = hashCode xor aLocator.hashCode() // ignores locator ordering
+        for (aLocator in locator!!) hashCode = hashCode xor aLocator.hashCode() // ignores locator ordering
         return hashCode
     }
 }

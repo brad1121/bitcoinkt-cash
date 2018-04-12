@@ -72,7 +72,7 @@ class HeadersMessage : Message {
         val serializer = this.params!!.getSerializer(true)
 
         for (i in 0 until numHeaders) {
-            val newBlockHeader = serializer.makeBlock(payload, cursor, Message.UNKNOWN_LENGTH)
+            val newBlockHeader = serializer.makeBlock(payload!!, cursor, Message.UNKNOWN_LENGTH)
             if (newBlockHeader.hasTransactions()) {
                 throw ProtocolException("Block header does not end with a null byte")
             }
@@ -86,7 +86,7 @@ class HeadersMessage : Message {
 
         if (log.isDebugEnabled()) {
             for (i in 0 until numHeaders) {
-                log.debug(this.blockHeaders!![i].toString())
+                log.debug(this.blockHeaders!![i.toInt()].toString())
             }
         }
     }

@@ -30,6 +30,7 @@ import java.security.NoSuchAlgorithmException
 import java.util.Arrays
 
 import com.google.common.base.Preconditions.checkArgument
+import kotlin.experimental.and
 
 /**
  * A Sha256Hash just wraps a byte[] so that equals and hashcode work correctly, allowing it to be used as keys in a
@@ -94,8 +95,8 @@ class Sha256Hash : Serializable, Comparable<Sha256Hash> {
 
     override fun compareTo(other: Sha256Hash): Int {
         for (i in LENGTH - 1 downTo 0) {
-            val thisByte = this.bytes[i] and 0xff
-            val otherByte = other.bytes[i] and 0xff
+            val thisByte = this.bytes[i] and 0xff.toByte()
+            val otherByte = other.bytes[i] and 0xff.toByte()
             if (thisByte > otherByte)
                 return 1
             if (thisByte < otherByte)
@@ -237,7 +238,7 @@ class Sha256Hash : Serializable, Comparable<Sha256Hash> {
          * @return the double-hash (in big-endian order)
          */
         @JvmOverloads
-        fun hashTwice(input: ByteArray?, offset: Int = 0, length: Int = input.size): ByteArray {
+        fun hashTwice(input: ByteArray?, offset: Int = 0, length: Int = input!!.size): ByteArray {
             val digest = newDigest()
             digest.update(input, offset, length)
             return digest.digest(digest.digest())

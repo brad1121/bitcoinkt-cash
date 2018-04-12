@@ -25,7 +25,7 @@ import javax.annotation.*
 import java.io.*
 
 import com.google.common.base.Preconditions.*
-
+//TODO I dont think this file converted from java correctly
 /**
  *
  * This message is a reference or pointer to an output of a different transaction.
@@ -40,7 +40,7 @@ class TransactionOutPoint : ChildMessage {
      * Returns the hash of the transaction this outpoint references/spends/is connected to.
      */
     override var hash: Sha256Hash? = null
-        internal set(value: Sha256Hash?) {
+        set(value: Sha256Hash?) {
             super.hash = value
         }
     /** Which output of that transaction we are talking about.  */
@@ -50,7 +50,7 @@ class TransactionOutPoint : ChildMessage {
     internal var fromTx: Transaction? = null
 
     // The connected output.
-    private val connectedOutput: TransactionOutput?
+    private var connectedOutput: TransactionOutput? = null
 
     /**
      * Returns the pubkey script from the connected output.
@@ -58,7 +58,7 @@ class TransactionOutPoint : ChildMessage {
      */
     val connectedPubKeyScript: ByteArray
         get() {
-            val result = checkNotNull<TransactionOutput>(getConnectedOutput()).scriptBytes
+            val result = checkNotNull<TransactionOutput>(connectedOutput).scriptBytes
             checkState(result!!.size > 0)
             return result
         }
@@ -86,9 +86,10 @@ class TransactionOutPoint : ChildMessage {
     }
 
 /**
- * /**
+ *
  * Deserializes the message. This is usually part of a transaction message.
 */
+
 @Throws(ProtocolException::class)
 constructor(params:NetworkParameters, payload:ByteArray, offset:Int) : super(params, payload, offset) {}
 
@@ -194,18 +195,18 @@ throw ScriptException("Could not understand form of connected output script: " +
 }
 }
 
-public override fun toString():String {
-return hash + ":" + index
+override fun toString():String {
+return hash.toString() + ":" + index
 }
 
-public override fun equals(o:Any?):Boolean {
+ override fun equals(o:Any?):Boolean {
 if (this === o) return true
 if (o == null || javaClass != o!!.javaClass) return false
 val other = o as TransactionOutPoint?
 return index == other!!.index && hash == other!!.hash
 }
 
-public override fun hashCode():Int {
+ override fun hashCode():Int {
 return Objects.hashCode(index, hash)
 }
 

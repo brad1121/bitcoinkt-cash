@@ -62,7 +62,7 @@ class GetUTXOsMessage : Message {
         val numOutpoints = readVarInt()
         val list = ImmutableList.builder<TransactionOutPoint>()
         for (i in 0 until numOutpoints) {
-            val outPoint = TransactionOutPoint(params, payload, cursor)
+            val outPoint = TransactionOutPoint(params!!, payload!!, cursor)
             list.add(outPoint)
             cursor += outPoint.messageSize
         }

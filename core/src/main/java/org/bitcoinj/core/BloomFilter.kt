@@ -191,7 +191,7 @@ class BloomFilter : Message {
     @Synchronized
     fun insert(key: ECKey) {
         insert(key.pubKey)
-        insert(key.pubKeyHash!!)
+        insert(key.getPubKeyHash())
     }
 
     /**

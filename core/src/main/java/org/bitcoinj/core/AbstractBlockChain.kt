@@ -203,7 +203,7 @@ constructor(context: Context, wallets: List<Wallet>,
         val chainHeight = bestChainHeight
         if (walletHeight != chainHeight) {
             log.warn("Wallet/chain height mismatch: {} vs {}", walletHeight, chainHeight)
-            log.warn("Hashes: {} vs {}", wallet.lastBlockSeenHash, chainHead.header.getHash())
+            log.warn("Hashes: {} vs {}", wallet.lastBlockSeenHash, chainHead.header.hash)
 
             // This special case happens when the VM crashes because of a transaction received. It causes the updated
             // block store to persist, but not the wallet. In order to fix the issue, we roll back the block store to
@@ -466,7 +466,7 @@ constructor(context: Context, wallets: List<Wallet>,
             if (block == chainHead.header) {
                 return true
             }
-            if (tryConnecting && orphanBlocks.containsKey(block.getHash())) {
+            if (tryConnecting && orphanBlocks.containsKey(block.hash)) {
                 return false
             }
 
@@ -476,7 +476,7 @@ constructor(context: Context, wallets: List<Wallet>,
 
             // Check for already-seen block, but only for full pruned mode, where the DB is
             // more likely able to handle these queries quickly.
-            if (shouldVerifyTransactions() && blockStore.get(block.getHash()) != null) {
+            if (shouldVerifyTransactions() && blockStore.get(block.hash) != null) {
                 return true
             }
 
@@ -513,7 +513,7 @@ constructor(context: Context, wallets: List<Wallet>,
                 // have more blocks.
                 checkState(tryConnecting, "bug in tryConnectingOrphans")
                 log.warn("Block does not connect: {} prev {}", block.hashAsString, block.getPrevBlockHash())
-                orphanBlocks.put(block.getHash(), OrphanBlock(block, filteredTxHashList, filteredTxn))
+                orphanBlocks.put(block.hash!!, OrphanBlock(block, filteredTxHashList, filteredTxn))
                 return false
             } else {
                 checkState(lock.isHeldByCurrentThread)
@@ -557,7 +557,7 @@ constructor(context: Context, wallets: List<Wallet>,
         checkState(lock.isHeldByCurrentThread)
         val filtered = filteredTxHashList != null && filteredTxn != null
         // Check that we aren't connecting a block that fails a checkpoint check
-        if (!params.passesCheckpoint(storedPrev.height + 1, block.getHash()))
+        if (!params.passesCheckpoint(storedPrev.height + 1, block.hash!!))
             throw VerificationException("Block failed checkpoint lockin at " + (storedPrev.height + 1))
         if (shouldVerifyTransactions()) {
             checkNotNull<List<Transaction>>(block.transactions)
@@ -613,7 +613,7 @@ constructor(context: Context, wallets: List<Wallet>,
                     // that we already saw and linked into the chain previously, which isn't the chain head.
                     // Re-processing it is confusing for the wallet so just skip.
                     log.warn("Saw duplicated block in main chain at height {}: {}",
-                            newBlock.height, newBlock.header.getHash())
+                            newBlock.height, newBlock.header.hash)
                     return
                 }
                 if (splitPoint == null) {
@@ -744,7 +744,7 @@ constructor(context: Context, wallets: List<Wallet>,
                     // We threw away the data we need to re-org this deep! We need to go back to a peer with full
                     // block contents and ask them for the relevant data then rebuild the indexs. Or we could just
                     // give up and ask the human operator to help get us unstuck (eg, rescan from the genesis block).
-                    // TODO: Retry adding this block when we get a block with hash e.getHash()
+                    // TODO: Retry adding this block when we get a block with hash e.hash
                     throw e
                 }
 
@@ -819,12 +819,12 @@ constructor(context: Context, wallets: List<Wallet>,
                 val prev = getStoredBlockInCurrentScope(orphanBlock.block.getPrevBlockHash())
                 if (prev == null) {
                     // This is still an unconnected/orphan block.
-                    log.debug("Orphan block {} is not connectable right now", orphanBlock.block.getHash())
+                    log.debug("Orphan block {} is not connectable right now", orphanBlock.block.hash)
                     continue
                 }
                 // Otherwise we can connect it now.
                 // False here ensures we don't recurse infinitely downwards when connecting huge chains.
-                log.info("Connected orphan {}", orphanBlock.block.getHash())
+                log.info("Connected orphan {}", orphanBlock.block.hash)
                 add(orphanBlock.block, false, orphanBlock.filteredTxHashes, orphanBlock.filteredTxn)
                 iter.remove()
                 blocksConnectedThisRound++

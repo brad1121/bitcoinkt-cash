@@ -49,7 +49,7 @@ constructor(context: Context, listeners: List<Wallet>,
             /**
              * Keeps a map of block hashes to StoredBlocks.
              */
-            protected val blockStore: FullPrunedBlockStore) : AbstractBlockChain(context, listeners, blockStore) {
+            override val blockStore: FullPrunedBlockStore) : AbstractBlockChain(context, listeners, blockStore) {
 
     // Whether or not to execute scriptPubKeys before accepting a transaction (i.e. check signatures).
     private var runScripts = true
@@ -109,14 +109,14 @@ constructor(context: Context, listeners: List<Wallet>,
     @Throws(BlockStoreException::class, VerificationException::class)
     override fun addToBlockStore(storedPrev: StoredBlock, header: Block, txOutChanges: TransactionOutputChanges?): StoredBlock {
         val newBlock = storedPrev.build(header)
-        blockStore.put(newBlock, StoredUndoableBlock(newBlock.header.hash, txOutChanges))
+        blockStore.put(newBlock, StoredUndoableBlock(newBlock.header.hash!!, txOutChanges!!))
         return newBlock
     }
 
     @Throws(BlockStoreException::class, VerificationException::class)
     override fun addToBlockStore(storedPrev: StoredBlock, block: Block): StoredBlock {
         val newBlock = storedPrev.build(block)
-        blockStore.put(newBlock, StoredUndoableBlock(newBlock.header.hash, block.transactions))
+        blockStore.put(newBlock, StoredUndoableBlock(newBlock.header.hash!!, block.transactions!!))
         return newBlock
     }
 
@@ -149,9 +149,9 @@ constructor(context: Context, listeners: List<Wallet>,
         override fun call(): VerificationException? {
             try {
                 val prevOutIt = prevOutScripts.listIterator()
-                for (index in 0 until tx.inputs.size) {
-                    val value = if (tx.getInput(index.toLong()).connectedOutput != null) tx.getInput(index.toLong()).connectedOutput!!.value else Coin.ZERO
-                    tx.inputs[index].scriptSig.correctlySpends(tx, index.toLong(), prevOutIt.next(), value, verifyFlags)
+                for (index in 0 until tx.getInputs().size) {
+                    val value = if (tx.getInput(index.toLong()).connectedOutput != null) tx.getInput(index.toLong()).connectedOutput!!.getValue() else Coin.ZERO
+                    tx.getInput(index.toLong()).getScriptSig().correctlySpends(tx, index.toLong(), prevOutIt.next(), value, verifyFlags)
                 }
             } catch (e: VerificationException) {
                 return e
@@ -196,7 +196,7 @@ constructor(context: Context, listeners: List<Wallet>,
         checkState(lock.isHeldByCurrentThread)
         if (block.transactions == null)
             throw RuntimeException("connectTransactions called with Block that didn't have transactions!")
-        if (!params.passesCheckpoint(height, block.hash))
+        if (!params.passesCheckpoint(height, block.hash!!))
             throw VerificationException("Block failed checkpoint lockin at " + height)
 
         blockStore.beginDatabaseBatchWrite()
@@ -219,7 +219,7 @@ constructor(context: Context, listeners: List<Wallet>,
                     val hash = tx.hash
                     // If we already have unspent outputs for this hash, we saw the tx already. Either the block is
                     // being added twice (bug) or the block is a BIP30 violator.
-                    if (blockStore.hasUnspentOutputs(hash, tx.outputs.size))
+                    if (blockStore.hasUnspentOutputs(hash, tx.getOutputs().size))
                         throw VerificationException("Block failed BIP30 test!")
                     if (verifyFlags.contains(VerifyFlag.P2SH))
                     // We already check non-BIP16 sigops in Block.verifyTransactions(true)
@@ -237,8 +237,8 @@ constructor(context: Context, listeners: List<Wallet>,
                 if (!isCoinBase) {
                     // For each input of the transaction remove the corresponding output from the set of unspent
                     // outputs.
-                    for (index in 0 until tx.inputs.size) {
-                        val `in` = tx.inputs[index]
+                    for (index in 0 until tx.getInputs().size) {
+                        val `in` = tx.getInput(index.toLong())
                         val prevOut = blockStore.getTransactionOutput(`in`.outpoint!!.hash,
                                 `in`.outpoint!!.index) ?: throw VerificationException("Attempted to spend a non-existent or already spent output!")
 // Coinbases can't be spent until they mature, to avoid re-orgs destroying entire transaction
@@ -253,24 +253,24 @@ constructor(context: Context, listeners: List<Wallet>,
                         valueIn = valueIn.add(prevOut.value!!)
                         if (verifyFlags.contains(VerifyFlag.P2SH)) {
                             if (prevOut.script!!.isPayToScriptHash)
-                                sigOps += Script.getP2SHSigOpCount(`in`.scriptBytes)
+                                sigOps += Script.getP2SHSigOpCount(`in`.getScriptBytes())
                             if (sigOps > Block.MAX_BLOCK_SIGOPS)
                                 throw VerificationException("Too many P2SH SigOps in block")
                         }
 
-                        prevOutScripts.add(prevOut.script)
+                        prevOutScripts.add(prevOut.script!!)
                         blockStore.removeUnspentTransactionOutput(prevOut)
                         txOutsSpent.add(prevOut)
                     }
                 }
                 val hash = tx.hash
-                for (out in tx.outputs) {
-                    valueOut = valueOut.add(out.value)
+                for (out in tx.getOutputs()) {
+                    valueOut = valueOut.add(out.getValue())
                     // For each output, add it to the set of unspent outputs so it can be consumed in future.
                     val script = getScript(out.scriptBytes)
-                    val newOut = UTXO(hash,
+                    val newOut = UTXO(hash!!,
                             out.index.toLong(),
-                            out.value,
+                            out.getValue(),
                             height, isCoinBase,
                             script,
                             getScriptAddress(script))
@@ -333,7 +333,7 @@ constructor(context: Context, listeners: List<Wallet>,
              */
     fun connectTransactions(newBlock: StoredBlock): TransactionOutputChanges {
         checkState(lock.isHeldByCurrentThread)
-        if (!params.passesCheckpoint(newBlock.height, newBlock.header.hash))
+        if (!params.passesCheckpoint(newBlock.height, newBlock.header.hash!!))
             throw VerificationException("Block failed checkpoint lockin at " + newBlock.height)
 
         blockStore.beginDatabaseBatchWrite()
@@ -341,7 +341,7 @@ constructor(context: Context, listeners: List<Wallet>,
         if (block == null) {
             // We're trying to re-org too deep and the data needed has been deleted.
             blockStore.abortDatabaseBatchWrite()
-            throw PrunedException(newBlock.header.hash)
+            throw PrunedException(newBlock.header.hash!!)
         }
         val txOutChanges: TransactionOutputChanges?
         try {
@@ -354,7 +354,7 @@ constructor(context: Context, listeners: List<Wallet>,
                 if (!params.isCheckpoint(newBlock.height)) {
                     for (tx in transactions) {
                         val hash = tx.hash
-                        if (blockStore.hasUnspentOutputs(hash, tx.outputs.size))
+                        if (blockStore.hasUnspentOutputs(hash, tx.getOutputs().size))
                             throw VerificationException("Block failed BIP30 test!")
                     }
                 }
@@ -372,8 +372,8 @@ constructor(context: Context, listeners: List<Wallet>,
                     val prevOutScripts = LinkedList<Script>()
 
                     if (!isCoinBase) {
-                        for (index in 0 until tx.inputs.size) {
-                            val `in` = tx.inputs[index]
+                        for (index in 0 until tx.getInputs().size) {
+                            val `in` = tx.getInput(index.toLong())
                             val prevOut = blockStore.getTransactionOutput(`in`.outpoint!!.hash,
                                     `in`.outpoint!!.index) ?: throw VerificationException("Attempted spend of a non-existent or already spent output!")
                             if (prevOut.isCoinbase && newBlock.height - prevOut.height < params.spendableCoinbaseDepth)
@@ -381,26 +381,26 @@ constructor(context: Context, listeners: List<Wallet>,
                             valueIn = valueIn.add(prevOut.value!!)
                             if (verifyFlags.contains(VerifyFlag.P2SH)) {
                                 if (prevOut.script!!.isPayToScriptHash)
-                                    sigOps += Script.getP2SHSigOpCount(`in`.scriptBytes)
+                                    sigOps += Script.getP2SHSigOpCount(`in`.getScriptBytes())
                                 if (sigOps > Block.MAX_BLOCK_SIGOPS)
                                     throw VerificationException("Too many P2SH SigOps in block")
                             }
 
                             // TODO: Enforce DER signature format
 
-                            prevOutScripts.add(prevOut.script)
+                            prevOutScripts.add(prevOut.script!!)
 
                             blockStore.removeUnspentTransactionOutput(prevOut)
                             txOutsSpent.add(prevOut)
                         }
                     }
                     val hash = tx.hash
-                    for (out in tx.outputs) {
-                        valueOut = valueOut.add(out.value)
+                    for (out in tx.getOutputs()) {
+                        valueOut = valueOut.add(out.getValue())
                         val script = getScript(out.scriptBytes)
-                        val newOut = UTXO(hash,
+                        val newOut = UTXO(hash!!,
                                 out.index.toLong(),
-                                out.value,
+                                out.getValue(),
                                 newBlock.height,
                                 isCoinBase,
                                 script,
@@ -479,7 +479,7 @@ constructor(context: Context, listeners: List<Wallet>,
         checkState(lock.isHeldByCurrentThread)
         blockStore.beginDatabaseBatchWrite()
         try {
-            val undoBlock = blockStore.getUndoBlock(oldBlock.header.hash) ?: throw PrunedException(oldBlock.header.hash)
+            val undoBlock = blockStore.getUndoBlock(oldBlock.header.hash) ?: throw PrunedException(oldBlock.header.hash!!)
             val txOutChanges = undoBlock.txOutChanges
             for (out in txOutChanges!!.txOutsSpent)
                 blockStore.addUnspentTransactionOutput(out)

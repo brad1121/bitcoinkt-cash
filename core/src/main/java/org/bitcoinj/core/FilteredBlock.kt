@@ -53,7 +53,7 @@ class FilteredBlock : Message {
             if (cachedTransactionHashes != null)
                 return Collections.unmodifiableList(cachedTransactionHashes!!)
             val hashesMatched = LinkedList<Sha256Hash>()
-            if (header!!.merkleRoot == partialMerkleTree!!.getTxnHashAndMerkleRoot(hashesMatched)) {
+            if (header!!.getMerkleRoot() == partialMerkleTree!!.getTxnHashAndMerkleRoot(hashesMatched)) {
                 cachedTransactionHashes = hashesMatched
                 return Collections.unmodifiableList(cachedTransactionHashes!!)
             } else
@@ -67,7 +67,7 @@ class FilteredBlock : Message {
         get() = header!!.cloneAsHeader()
 
     /** Gets the hash of the block represented in this Filtered Block  */
-    override val hash: Sha256Hash
+    override val hash: Sha256Hash?
         get() = header!!.hash
 
     /** Number of transactions in this block, before it was filtered  */
@@ -96,9 +96,9 @@ class FilteredBlock : Message {
     override fun parse() {
         val headerBytes = ByteArray(Block.HEADER_SIZE)
         System.arraycopy(payload!!, 0, headerBytes, 0, Block.HEADER_SIZE)
-        header = params!!.getDefaultSerializer().makeBlock(headerBytes)
+        header = params!!.defaultSerializer!!.makeBlock(headerBytes)
 
-        partialMerkleTree = PartialMerkleTree(params, payload, Block.HEADER_SIZE)
+        partialMerkleTree = PartialMerkleTree(params!!, payload!!, Block.HEADER_SIZE)
 
         length = Block.HEADER_SIZE + partialMerkleTree!!.messageSize
     }
@@ -111,7 +111,7 @@ class FilteredBlock : Message {
     fun provideTransaction(tx: Transaction): Boolean {
         val hash = tx.hash
         if (transactionHashes.contains(hash)) {
-            associatedTransactions.put(hash, tx)
+            associatedTransactions.put(hash!!, tx)
             return true
         }
         return false

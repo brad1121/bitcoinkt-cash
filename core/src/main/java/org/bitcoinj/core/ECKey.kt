@@ -101,7 +101,7 @@ open class ECKey : EncryptableItem {
 
     // The two parts of the key. If "priv" is set, "pub" can always be calculated. If "pub" is set but not "priv", we
     // can only verify signatures not make them.
-    protected val priv: BigInteger?  // A field element.
+    protected val priv: BigInteger  // A field element.
     protected val pub: LazyECPoint
 
     // Creation time of the key in seconds since the epoch, or zero if the key was deserialized from a version that did
@@ -155,11 +155,11 @@ open class ECKey : EncryptableItem {
      * as the pubKeyHash/address.
      */
     val pubKey: ByteArray
-        get() = pub.encoded
+        get() = pub!!.encoded
 
     /** Gets the public key in the form of an elliptic curve point object from Bouncy Castle.  */
     val pubKeyPoint: ECPoint
-        get() = pub.get()
+        get() = pub!!.get()
 
     /**
      * Gets the private key in the form of an integer field element. The public key is derived by performing EC
@@ -197,6 +197,9 @@ open class ECKey : EncryptableItem {
      * Generates an entirely new keypair with the given [SecureRandom] object. Point compression is used so the
      * resulting public key will be 33 bytes (32 for the co-ordinate and 1 byte to represent the y bit).
      */
+    constructor(){
+        ECKey(secureRandom)
+    }
     constructor(secureRandom: SecureRandom) {
         val generator = ECKeyPairGenerator()
         val keygenParams = ECKeyGenerationParameters(CURVE, secureRandom)
@@ -204,8 +207,8 @@ open class ECKey : EncryptableItem {
         val keypair = generator.generateKeyPair()
         val privParams = keypair.private as ECPrivateKeyParameters
         val pubParams = keypair.public as ECPublicKeyParameters
-        priv = privParams.d
-        pub = LazyECPoint(CURVE.curve, pubParams.q.getEncoded(true))
+        this.priv = privParams.d
+        this.pub = LazyECPoint(CURVE.curve, pubParams.q.getEncoded(true))
         creationTimeSeconds = Utils.currentTimeSeconds()
     }
 
@@ -217,12 +220,12 @@ open class ECKey : EncryptableItem {
             checkArgument(priv != BigInteger.ZERO)
             checkArgument(priv != BigInteger.ONE)
         }
-        this.priv = priv
+        this.priv = priv!!
         this.pub = LazyECPoint(checkNotNull(pub))
     }
 
     protected constructor(priv: BigInteger?, pub: LazyECPoint) {
-        this.priv = priv
+        this.priv = priv!!
         this.pub = checkNotNull(pub)
     }
 
@@ -271,7 +274,7 @@ open class ECKey : EncryptableItem {
     constructor(privKey: BigInteger?, pubKey: ByteArray?, compressed: Boolean) {
         if (privKey == null && pubKey == null)
             throw IllegalArgumentException("ECKey requires at least private or public key")
-        this.priv = privKey
+        this.priv = privKey!!
         if (pubKey == null) {
             // Derive public from private.
             var point = publicPointFromPrivate(privKey!!)

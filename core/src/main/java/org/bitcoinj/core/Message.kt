@@ -67,7 +67,7 @@ abstract class Message {
      * This method is a NOP for all classes except Block and Transaction.  It is only declared in Message
      * so BitcoinSerializer can avoid 2 instanceof checks + a casting.
      */
-    open val hash: Sha256Hash?
+    open var hash: Sha256Hash? = null
         get() = throw UnsupportedOperationException()
 
     /**
