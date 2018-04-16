@@ -167,7 +167,7 @@ class PeerAddress : ChildMessage {
             throw RuntimeException(e)  // Cannot happen.
         }
 
-        port = 0xFF and payload!![cursor++] shl 8 or (0xFF and payload!![cursor++])
+        port = 0xFF and payload!![cursor++].toInt() shl 8 or (0xFF and payload!![cursor++].toInt())
         // The 4 byte difference is the uint32 timestamp that was introduced in version 31402
         length = if (protocolVersion > 31402) MESSAGE_SIZE else MESSAGE_SIZE - 4
     }

@@ -50,11 +50,11 @@ open class InventoryMessage : ListMessage {
     constructor(params: NetworkParameters) : super(params) {}
 
     fun addBlock(block: Block) {
-        addItem(InventoryItem(InventoryItem.Type.Block, block.hash))
+        addItem(InventoryItem(InventoryItem.Type.Block, block.hash!!))
     }
 
     fun addTransaction(tx: Transaction) {
-        addItem(InventoryItem(InventoryItem.Type.Transaction, tx.hash))
+        addItem(InventoryItem(InventoryItem.Type.Transaction, tx.hash!!))
     }
 
     companion object {
@@ -65,7 +65,7 @@ open class InventoryMessage : ListMessage {
         /** Creates a new inv message for the given transactions.  */
         fun with(vararg txns: Transaction): InventoryMessage {
             checkArgument(txns.size > 0)
-            val result = InventoryMessage(txns[0].params)
+            val result = InventoryMessage(txns[0].params!!)
             for (tx in txns)
                 result.addTransaction(tx)
             return result

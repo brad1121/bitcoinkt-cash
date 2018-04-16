@@ -48,6 +48,29 @@ open class TransactionBroadcast {
     // Tracks which nodes sent us a reject message about this broadcast, if any. Useful for debugging.
     private val rejects = Collections.synchronizedMap(HashMap<Peer, RejectMessage>())
 
+
+
+    private var numSeemPeers: Int = 0
+    private var mined: Boolean = false
+
+    private var callback: ProgressCallback? = null
+    private var progressCallbackExecutor: Executor? = null
+
+    constructor(peerGroup: PeerGroup, tx: Transaction) {
+        this.peerGroup = peerGroup
+        this.tx = tx
+        this.minConnections = Math.max(1, peerGroup.getMinBroadcastConnections())
+    }
+
+    // Only for mock broadcasts.
+    private constructor(tx: Transaction) {
+        this.peerGroup = null
+        this.tx = tx
+    }
+
+    open fun future(): ListenableFuture<Transaction> {
+        return future
+    }
     private val rejectionListener = object : PreMessageReceivedEventListener {
         override fun onPreMessageReceived(peer: Peer, m: Message): Message {
             if (m is RejectMessage) {
@@ -65,29 +88,6 @@ open class TransactionBroadcast {
             return m
         }
     }
-
-    private var numSeemPeers: Int = 0
-    private var mined: Boolean = false
-
-    private var callback: ProgressCallback? = null
-    private var progressCallbackExecutor: Executor? = null
-
-    internal constructor(peerGroup: PeerGroup, tx: Transaction) {
-        this.peerGroup = peerGroup
-        this.tx = tx
-        this.minConnections = Math.max(1, peerGroup.minBroadcastConnections)
-    }
-
-    // Only for mock broadcasts.
-    private constructor(tx: Transaction) {
-        this.peerGroup = null
-        this.tx = tx
-    }
-
-    open fun future(): ListenableFuture<Transaction> {
-        return future
-    }
-
     fun setMinConnections(minConnections: Int) {
         this.minConnections = minConnections
     }

@@ -36,10 +36,11 @@ import org.spongycastle.crypto.params.KeyParameter
 import java.io.*
 import java.util.*
 
-import org.bitcoinj.core.Utils.*
+import org.bitcoinj.core.Utils
 import com.google.common.base.Preconditions.checkArgument
 import com.google.common.base.Preconditions.checkState
 import java.math.BigInteger
+import kotlin.experimental.and
 
 /**
  *
@@ -87,14 +88,14 @@ class Transaction : ChildMessage {
      *
      * No verification is performed on this hash.
      */
-     var hash: Sha256Hash? = null
+     override var hash: Sha256Hash? = null
         get() {
             if (field == null) {
                 this.hash = Sha256Hash.wrapReversed(Sha256Hash.hashTwice(unsafeBitcoinSerialize()))
             }
             return field
         }
-        internal set(value: Sha256Hash?) {
+         set(value: Sha256Hash?) {
             super.hash = value
         }
 
@@ -176,7 +177,7 @@ class Transaction : ChildMessage {
      * @return true if this transaction hasn't been seen in any block yet.
      */
     val isPending: Boolean
-        get() = getConfidence().confidenceType == TransactionConfidence.ConfidenceType.PENDING
+        get() = getConfidence().getConfidenceType() == TransactionConfidence.ConfidenceType.PENDING
 
     /**
      * Gets the sum of the outputs of the transaction. If the outputs are less than the inputs, it does not count the fee.
@@ -219,7 +220,7 @@ class Transaction : ChildMessage {
                 fee = fee.add(input.value!!)
             }
             for (output in outputs!!) {
-                fee = fee.subtract(output.value)
+                fee = fee.subtract(output.getValue())
             }
             return fee
         }
@@ -246,7 +247,7 @@ class Transaction : ChildMessage {
             if (updatedAt == null) {
                 updatedAt = Date(0)
             }
-            return updatedAt
+            return updatedAt as Date
         }
         set(updatedAt) {
             this.updatedAt = updatedAt
@@ -263,7 +264,7 @@ class Transaction : ChildMessage {
         get() {
             var size = messageSize
             for (input in inputs!!) {
-                val benefit = 41 + Math.min(110, input.scriptSig.program.size)
+                val benefit = 41 + Math.min(110, input.getScriptSig().program.size)
                 if (size > benefit)
                     size -= benefit
             }
@@ -287,7 +288,7 @@ class Transaction : ChildMessage {
             if (!isCoinBase)
                 return true
 
-            return if (getConfidence().confidenceType != ConfidenceType.BUILDING) false else getConfidence().depthInBlocks >= params!!.spendableCoinbaseDepth
+            return if (getConfidence().getConfidenceType() != ConfidenceType.BUILDING) false else getConfidence().depthInBlocks >= params!!.spendableCoinbaseDepth
 
         }
 
@@ -299,7 +300,7 @@ class Transaction : ChildMessage {
         get() {
             var sigOps = 0
             for (input in inputs!!)
-                sigOps += Script.getSigOpCount(input.scriptBytes)
+                sigOps += Script.getSigOpCount(input.getScriptBytes())
             for (output in outputs!!)
                 sigOps += Script.getSigOpCount(output.scriptBytes)
             return sigOps
@@ -413,7 +414,7 @@ class Transaction : ChildMessage {
         var v = Coin.ZERO
         for (o in outputs!!) {
             if (!o.isMineOrWatched(transactionBag)) continue
-            v = v.add(o.value)
+            v = v.add(o.getValue())
         }
         return v
     }
@@ -450,12 +451,12 @@ class Transaction : ChildMessage {
             updatedAt = Date(blockTime)
         }
 
-        addBlockAppearance(block.header.hash, relativityOffset)
+        addBlockAppearance(block.header.hash!!, relativityOffset)
 
         if (bestChain) {
             val transactionConfidence = getConfidence()
             // This sets type to BUILDING and depth to one.
-            transactionConfidence.appearedAtChainHeight = block.height
+            transactionConfidence.setAppearedAtChainHeight( block.height )
         }
     }
 
@@ -492,7 +493,7 @@ class Transaction : ChildMessage {
             // case we ignore it.
             if (!connected.isMineOrWatched(wallet))
                 continue
-            v = v.add(connected.value)
+            v = v.add(connected.getValue())
         }
         return v
     }
@@ -505,7 +506,7 @@ class Transaction : ChildMessage {
         // FIXME: TEMP PERF HACK FOR ANDROID - this crap can go away once we have a real payments API.
         val isAndroid = Utils.isAndroidRuntime
         if (isAndroid && cachedValue != null && cachedForBag === wallet)
-            return cachedValue
+            return cachedValue as Coin
         val result = getValueSentToMe(wallet).subtract(getValueSentFromMe(wallet))
         if (isAndroid) {
             cachedValue = result
@@ -572,7 +573,7 @@ class Transaction : ChildMessage {
         optimalEncodingMessageSize += VarInt.sizeOf(numInputs)
         inputs = ArrayList(numInputs.toInt())
         for (i in 0 until numInputs) {
-            val input = TransactionInput(params, this, payload, cursor, serializer)
+            val input = TransactionInput(params!!, this, payload!!, cursor, serializer!!)
             inputs!!.add(input)
             val scriptLen = readVarInt(TransactionOutPoint.MESSAGE_LENGTH)
             optimalEncodingMessageSize += (TransactionOutPoint.MESSAGE_LENGTH.toLong() + VarInt.sizeOf(scriptLen).toLong() + scriptLen + 4).toInt()
@@ -583,7 +584,7 @@ class Transaction : ChildMessage {
         optimalEncodingMessageSize += VarInt.sizeOf(numOutputs)
         outputs = ArrayList(numOutputs.toInt())
         for (i in 0 until numOutputs) {
-            val output = TransactionOutput(params, this, payload, cursor, serializer)
+            val output = TransactionOutput(params!!, this, payload!!, cursor, serializer!!)
             outputs!!.add(output)
             val scriptLen = readVarInt(8)
             optimalEncodingMessageSize += (8 + VarInt.sizeOf(scriptLen).toLong() + scriptLen).toInt()
@@ -613,7 +614,7 @@ class Transaction : ChildMessage {
         val s = StringBuilder()
         s.append("  ").append(hashAsString).append('\n')
         if (updatedAt != null)
-            s.append("  updated: ").append(Utils.dateTimeFormat(updatedAt)).append('\n')
+            s.append("  updated: ").append(Utils.dateTimeFormat(updatedAt as Date)).append('\n')
         if (version != 1L)
             s.append("  version ").append(version).append('\n')
         if (isTimeLocked) {
@@ -640,8 +641,8 @@ class Transaction : ChildMessage {
             var script: String
             var script2: String
             try {
-                script = inputs!![0].scriptSig.toString()
-                script2 = outputs!![0].scriptPubKey.toString()
+                script = inputs!![0].getScriptSig().toString()
+                script2 = outputs!![0].getScriptPubKey().toString()
             } catch (e: ScriptException) {
                 script = "???"
                 script2 = "???"
@@ -656,7 +657,7 @@ class Transaction : ChildMessage {
             s.append("in   ")
 
             try {
-                val scriptSig = `in`.scriptSig
+                val scriptSig = `in`.getScriptSig()
                 s.append(scriptSig)
                 if (`in`.value != null)
                     s.append(" ").append(`in`.value!!.toFriendlyString())
@@ -664,9 +665,9 @@ class Transaction : ChildMessage {
                 s.append("outpoint:")
                 val outpoint = `in`.outpoint
                 s.append(outpoint!!.toString())
-                val connectedOutput = outpoint.connectedOutput
+                val connectedOutput = outpoint.getConnectedOutput()
                 if (connectedOutput != null) {
-                    val scriptPubKey = connectedOutput.scriptPubKey
+                    val scriptPubKey = connectedOutput.getScriptPubKey()
                     if (scriptPubKey.isSentToAddress || scriptPubKey.isPayToScriptHash) {
                         s.append(" hash160:")
                         s.append(Utils.HEX.encode(scriptPubKey.pubKeyHash))
@@ -687,10 +688,10 @@ class Transaction : ChildMessage {
             s.append("     ")
             s.append("out  ")
             try {
-                val scriptPubKey = out.scriptPubKey
+                val scriptPubKey = out.getScriptPubKey()
                 s.append(scriptPubKey)
                 s.append(" ")
-                s.append(out.value.toFriendlyString())
+                s.append(out.getValue().toFriendlyString())
                 if (!out.isAvailableForSpending) {
                     s.append(" Spent")
                 }
@@ -722,7 +723,7 @@ class Transaction : ChildMessage {
     fun clearInputs() {
         unCache()
         for (input in inputs!!) {
-            input.setParent(null)
+            input.parent = null
         }
         inputs!!.clear()
         // You wanted to reserialize, right?
@@ -737,7 +738,7 @@ class Transaction : ChildMessage {
      * @return the newly created input.
      */
     fun addInput(from: TransactionOutput): TransactionInput {
-        return addInput(TransactionInput(params, this, from))
+        return addInput(TransactionInput(params!!, this, from))
     }
 
     /**
@@ -746,7 +747,7 @@ class Transaction : ChildMessage {
      */
     fun addInput(input: TransactionInput): TransactionInput {
         unCache()
-        input.setParent(this)
+        input.parent =(this)
         inputs!!.add(input)
         adjustLength(inputs!!.size, input.length)
         return input
@@ -757,7 +758,7 @@ class Transaction : ChildMessage {
      * @return the newly created input.
      */
     fun addInput(spendTxHash: Sha256Hash, outputIndex: Long, script: Script): TransactionInput {
-        return addInput(TransactionInput(params, this, script.program, TransactionOutPoint(params, outputIndex, spendTxHash)))
+        return addInput(TransactionInput(params!!, this, script.program, TransactionOutPoint(params!!, outputIndex, spendTxHash)))
     }
 
     /**
@@ -774,15 +775,15 @@ class Transaction : ChildMessage {
                        sigHash: SigHash = SigHash.ALL, anyoneCanPay: Boolean = false): TransactionInput {
         // Verify the API user didn't try to do operations out of order.
         checkState(!outputs!!.isEmpty(), "Attempting to sign tx without outputs.")
-        val input = TransactionInput(params, this, byteArrayOf(), prevOut)
+        val input = TransactionInput(params!!, this, byteArrayOf(), prevOut)
         addInput(input)
         val hash = hashForSignature(inputs!!.size - 1, scriptPubKey, sigHash, anyoneCanPay)
         val ecSig = sigKey.sign(hash)
         val txSig = TransactionSignature(ecSig, sigHash, anyoneCanPay, false)
         if (scriptPubKey.isSentToRawPubKey)
-            input.scriptSig = ScriptBuilder.createInputScript(txSig)
+            input.setScriptSig( ScriptBuilder.createInputScript(txSig) )
         else if (scriptPubKey.isSentToAddress)
-            input.scriptSig = ScriptBuilder.createInputScript(txSig, sigKey)
+            input.setScriptSig( ScriptBuilder.createInputScript(txSig, sigKey) )
         else
             throw ScriptException("Don't know how to sign for this kind of scriptPubKey: " + scriptPubKey)
         return input
@@ -801,19 +802,19 @@ class Transaction : ChildMessage {
                        sigHash: SigHash, anyoneCanPay: Boolean, forkId: Boolean): TransactionInput {
         // Verify the API user didn't try to do operations out of order.
         checkState(!outputs!!.isEmpty(), "Attempting to sign tx without outputs.")
-        val input = TransactionInput(params, this, byteArrayOf(), prevOut)
+        val input = TransactionInput(params!!, this, byteArrayOf(), prevOut)
         addInput(input)
         val hash = if (forkId)
-            hashForSignatureWitness(inputs!!.size - 1, scriptPubKey, prevOut.connectedOutput!!.value, sigHash, anyoneCanPay)
+            hashForSignatureWitness(inputs!!.size - 1, scriptPubKey, prevOut.getConnectedOutput()!!.getValue(), sigHash, anyoneCanPay)
         else
             hashForSignature(inputs!!.size - 1, scriptPubKey, sigHash, anyoneCanPay)
 
         val ecSig = sigKey.sign(hash)
         val txSig = TransactionSignature(ecSig, sigHash, anyoneCanPay, forkId)
         if (scriptPubKey.isSentToRawPubKey)
-            input.scriptSig = ScriptBuilder.createInputScript(txSig)
+            input.setScriptSig( ScriptBuilder.createInputScript(txSig) )
         else if (scriptPubKey.isSentToAddress)
-            input.scriptSig = ScriptBuilder.createInputScript(txSig, sigKey)
+            input.setScriptSig( ScriptBuilder.createInputScript(txSig, sigKey) )
         else
             throw ScriptException("Don't know how to sign for this kind of scriptPubKey: " + scriptPubKey)
         return input
@@ -824,7 +825,7 @@ class Transaction : ChildMessage {
      * signing key.
      */
     fun addSignedInput(output: TransactionOutput, signingKey: ECKey): TransactionInput {
-        return addSignedInput(output.outPointFor, output.scriptPubKey, signingKey)
+        return addSignedInput(output.outPointFor, output.getScriptPubKey(), signingKey)
     }
 
     /**
@@ -832,7 +833,7 @@ class Transaction : ChildMessage {
      * signing key.
      */
     fun addSignedInput(output: TransactionOutput, signingKey: ECKey, sigHash: SigHash, anyoneCanPay: Boolean): TransactionInput {
-        return addSignedInput(output.outPointFor, output.scriptPubKey, signingKey, sigHash, anyoneCanPay)
+        return addSignedInput(output.outPointFor, output.getScriptPubKey(), signingKey, sigHash, anyoneCanPay)
     }
 
     /**
@@ -842,7 +843,7 @@ class Transaction : ChildMessage {
     fun clearOutputs() {
         unCache()
         for (output in outputs!!) {
-            output.setParent(null)
+            output.parent =(null)
         }
         outputs!!.clear()
         // You wanted to reserialize, right?
@@ -854,7 +855,7 @@ class Transaction : ChildMessage {
      */
     fun addOutput(to: TransactionOutput): TransactionOutput {
         unCache()
-        to.setParent(this)
+        to.parent = (this)
         outputs!!.add(to)
         adjustLength(outputs!!.size, to.length)
         return to
@@ -864,7 +865,7 @@ class Transaction : ChildMessage {
      * Creates an output based on the given address and value, adds it to this transaction, and returns the new output.
      */
     fun addOutput(value: Coin, address: Address): TransactionOutput {
-        return addOutput(TransactionOutput(params, this, value, address))
+        return addOutput(TransactionOutput(params!!, this, value, address))
     }
 
     /**
@@ -872,7 +873,7 @@ class Transaction : ChildMessage {
      * transaction, and returns the new output.
      */
     fun addOutput(value: Coin, pubkey: ECKey): TransactionOutput {
-        return addOutput(TransactionOutput(params, this, value, pubkey))
+        return addOutput(TransactionOutput(params!!, this, value, pubkey))
     }
 
     /**
@@ -880,7 +881,7 @@ class Transaction : ChildMessage {
      * you won't normally need to use it unless you're doing unusual things.
      */
     fun addOutput(value: Coin, script: Script): TransactionOutput {
-        return addOutput(TransactionOutput(params, this, value, script.program))
+        return addOutput(TransactionOutput(params!!, this, value, script.program))
     }
 
 
@@ -1076,7 +1077,7 @@ class Transaction : ChildMessage {
         try {
             // Create a copy of this transaction to operate upon because we need make changes to the inputs and outputs.
             // It would not be thread-safe to change the attributes of the transaction object itself.
-            val tx = this.params!!.defaultSerializer.makeTransaction(this.bitcoinSerialize())
+            val tx = this.params!!.defaultSerializer!!.makeTransaction(this.bitcoinSerialize())
 
             // Clear input scripts in preparation for signing. If we're signing a fresh
             // transaction that step isn't very helpful, but it doesn't add much cost relative to the actual
@@ -1098,16 +1099,16 @@ class Transaction : ChildMessage {
             // the signature covers the hash of the prevout transaction which obviously includes the output script
             // already. Perhaps it felt safer to him in some way, or is another leftover from how the code was written.
             val input = tx.inputs!![inputIndex]
-            input.scriptBytes = connectedScript
+            input.setScriptBytes( connectedScript )
 
-            if (sigHashType and 0x1f == SigHash.NONE.value) {
+            if (sigHashType and 0x1f == SigHash.NONE.value.toByte()) {
                 // SIGHASH_NONE means no outputs are signed at all - the signature is effectively for a "blank cheque".
                 tx.outputs = ArrayList(0)
                 // The signature isn't broken by new versions of the transaction issued by other parties.
                 for (i in tx.inputs!!.indices)
                     if (i != inputIndex)
                         tx.inputs!![i].sequenceNumber = 0
-            } else if (sigHashType and 0x1f == SigHash.SINGLE.value) {
+            } else if (sigHashType and 0x1f == SigHash.SINGLE.value.toByte()) {
                 // SIGHASH_SINGLE means only sign the output at the same index as the input (ie, my output).
                 if (inputIndex >= tx.outputs!!.size) {
                     // The input index is beyond the number of outputs, it's a buggy signature made by a broken
@@ -1124,14 +1125,14 @@ class Transaction : ChildMessage {
                 // that position are "nulled out". Unintuitively, the value in a "null" transaction is set to -1.
                 tx.outputs = ArrayList(tx.outputs!!.subList(0, inputIndex + 1))
                 for (i in 0 until inputIndex)
-                    tx.outputs!![i] = TransactionOutput(tx.params, tx, Coin.NEGATIVE_SATOSHI, byteArrayOf())
+                    tx.outputs!![i] = TransactionOutput(tx.params!!, tx, Coin.NEGATIVE_SATOSHI, byteArrayOf())
                 // The signature isn't broken by new versions of the transaction issued by other parties.
                 for (i in tx.inputs!!.indices)
                     if (i != inputIndex)
                         tx.inputs!![i].sequenceNumber = 0
             }
 
-            if (sigHashType and SigHash.ANYONECANPAY.value == SigHash.ANYONECANPAY.value) {
+            if (sigHashType and SigHash.ANYONECANPAY.value.toByte() == SigHash.ANYONECANPAY.value.toByte()) {
                 // SIGHASH_ANYONECANPAY means the signature in the input is not broken by changes/additions/removals
                 // of other inputs. For example, this is useful for building assurance contracts.
                 tx.inputs = ArrayList()
@@ -1141,7 +1142,7 @@ class Transaction : ChildMessage {
             val bos = UnsafeByteArrayOutputStream(if (tx.length == Message.UNKNOWN_LENGTH) 256 else tx.length + 4)
             tx.bitcoinSerialize(bos)
             // We also have to write a hash type (sigHashType is actually an unsigned char)
-            uint32ToByteStreamLE((0x000000ff and sigHashType).toLong(), bos)
+            Utils.uint32ToByteStreamLE((0x000000ff and sigHashType.toInt()).toLong(), bos)
             // Note that this is NOT reversed to ensure it will be signed correctly. If it were to be printed out
             // however then we would expect that it is IS reversed.
             val hash = Sha256Hash.twiceOf(bos.toByteArray())
@@ -1196,13 +1197,13 @@ class Transaction : ChildMessage {
             var hashPrevouts = ByteArray(32)
             var hashSequence = ByteArray(32)
             var hashOutputs = ByteArray(32)
-            anyoneCanPay = sigHashType and SIGHASH_ANYONECANPAY_VALUE == SIGHASH_ANYONECANPAY_VALUE.toInt()
+            anyoneCanPay = sigHashType and SigHash.ANYONECANPAY.value.toByte() == SigHash.ANYONECANPAY.value.toByte() // *_*
 
             if (!anyoneCanPay) {
                 val bosHashPrevouts = UnsafeByteArrayOutputStream(256)
                 for (i in this.inputs!!.indices) {
                     bosHashPrevouts.write(this.inputs!![i].outpoint!!.hash!!.reversedBytes)
-                    uint32ToByteStreamLE(this.inputs!![i].outpoint!!.index, bosHashPrevouts)
+                    Utils.uint32ToByteStreamLE(this.inputs!![i].outpoint!!.index, bosHashPrevouts)
                 }
                 hashPrevouts = Sha256Hash.hashTwice(bosHashPrevouts.toByteArray())
             }
@@ -1210,7 +1211,7 @@ class Transaction : ChildMessage {
             if (!anyoneCanPay && type != SigHash.SINGLE && type != SigHash.NONE) {
                 val bosSequence = UnsafeByteArrayOutputStream(256)
                 for (i in this.inputs!!.indices) {
-                    uint32ToByteStreamLE(this.inputs!![i].sequenceNumber, bosSequence)
+                    Utils.uint32ToByteStreamLE(this.inputs!![i].sequenceNumber, bosSequence)
                 }
                 hashSequence = Sha256Hash.hashTwice(bosSequence.toByteArray())
             }
@@ -1218,8 +1219,8 @@ class Transaction : ChildMessage {
             if (type != SigHash.SINGLE && type != SigHash.NONE) {
                 val bosHashOutputs = UnsafeByteArrayOutputStream(256)
                 for (i in this.outputs!!.indices) {
-                    uint64ToByteStreamLE(
-                            BigInteger.valueOf(this.outputs!![i].value.value),
+                    Utils.uint64ToByteStreamLE(
+                            BigInteger.valueOf(this.outputs!![i].getValue().value),
                             bosHashOutputs
                     )
                     bosHashOutputs.write(VarInt(this.outputs!![i].scriptBytes!!.size.toLong()).encode())
@@ -1228,26 +1229,26 @@ class Transaction : ChildMessage {
                 hashOutputs = Sha256Hash.hashTwice(bosHashOutputs.toByteArray())
             } else if (type == SigHash.SINGLE && inputIndex < outputs!!.size) {
                 val bosHashOutputs = UnsafeByteArrayOutputStream(256)
-                uint64ToByteStreamLE(
-                        BigInteger.valueOf(this.outputs!![inputIndex].value.value),
+                Utils.uint64ToByteStreamLE(
+                        BigInteger.valueOf(this.outputs!![inputIndex].getValue().value),
                         bosHashOutputs
                 )
                 bosHashOutputs.write(VarInt(this.outputs!![inputIndex].scriptBytes!!.size.toLong()).encode())
                 bosHashOutputs.write(this.outputs!![inputIndex].scriptBytes!!)
                 hashOutputs = Sha256Hash.hashTwice(bosHashOutputs.toByteArray())
             }
-            uint32ToByteStreamLE(version, bos)
+            Utils.uint32ToByteStreamLE(version, bos)
             bos.write(hashPrevouts)
             bos.write(hashSequence)
             bos.write(inputs!![inputIndex].outpoint!!.hash!!.reversedBytes)
-            uint32ToByteStreamLE(inputs!![inputIndex].outpoint!!.index, bos)
+            Utils.uint32ToByteStreamLE(inputs!![inputIndex].outpoint!!.index, bos)
             bos.write(VarInt(connectedScript.size.toLong()).encode())
             bos.write(connectedScript)
-            uint64ToByteStreamLE(BigInteger.valueOf(prevValue.value), bos)
-            uint32ToByteStreamLE(inputs!![inputIndex].sequenceNumber, bos)
+            Utils.uint64ToByteStreamLE(BigInteger.valueOf(prevValue.value), bos)
+            Utils.uint32ToByteStreamLE(inputs!![inputIndex].sequenceNumber, bos)
             bos.write(hashOutputs)
-            uint32ToByteStreamLE(this.lockTime, bos)
-            uint32ToByteStreamLE((0x000000ff and sigHashType).toLong(), bos)
+            Utils.uint32ToByteStreamLE(this.lockTime, bos)
+            Utils.uint32ToByteStreamLE((0x000000ff and sigHashType.toInt()).toLong(), bos)
         } catch (e: IOException) {
             throw RuntimeException(e)  // Cannot happen.
         }
@@ -1257,14 +1258,14 @@ class Transaction : ChildMessage {
 
     @Throws(IOException::class)
     override fun bitcoinSerializeToStream(stream: OutputStream) {
-        uint32ToByteStreamLE(version, stream)
+        Utils.uint32ToByteStreamLE(version, stream)
         stream.write(VarInt(inputs!!.size.toLong()).encode())
         for (`in` in inputs!!)
             `in`.bitcoinSerialize(stream)
         stream.write(VarInt(outputs!!.size.toLong()).encode())
         for (out in outputs!!)
             out.bitcoinSerialize(stream)
-        uint32ToByteStreamLE(lockTime, stream)
+        Utils.uint32ToByteStreamLE(lockTime, stream)
     }
 
 
@@ -1364,13 +1365,13 @@ class Transaction : ChildMessage {
      */
     fun getConfidence(table: TxConfidenceTable): TransactionConfidence {
         if (confidence == null)
-            confidence = table.getOrCreate(hash)
-        return confidence
+            confidence = table.getOrCreate(hash!!)
+        return confidence as TransactionConfidence
     }
 
     /** Check if the transaction has a known confidence  */
     fun hasConfidence(): Boolean {
-        return getConfidence().confidenceType != TransactionConfidence.ConfidenceType.UNKNOWN
+        return getConfidence().getConfidenceType() != TransactionConfidence.ConfidenceType.UNKNOWN
     }
 
     override fun equals(o: Any?): Boolean {
@@ -1379,7 +1380,7 @@ class Transaction : ChildMessage {
     }
 
     override fun hashCode(): Int {
-        return hash.hashCode()
+        return hash!!.hashCode()
     }
 
     /**
@@ -1396,7 +1397,7 @@ class Transaction : ChildMessage {
         val builder = ScriptBuilder()
         builder.number(height.toLong())
         val expected = builder.build().program
-        val actual = `in`.scriptBytes
+        val actual = `in`.getScriptBytes()
         if (actual!!.size < expected.size) {
             throw VerificationException.CoinbaseHeightMismatch("Block height mismatch in coinbase.")
         }
@@ -1436,14 +1437,14 @@ class Transaction : ChildMessage {
         for (input in inputs!!) {
             if (outpoints.contains(input.outpoint))
                 throw VerificationException.DuplicatedOutPoint()
-            outpoints.add(input.outpoint)
+            outpoints.add(input.outpoint!!)
         }
         try {
             for (output in outputs!!) {
-                if (output.value.signum() < 0)
+                if (output.getValue().signum() < 0)
                 // getValue() can throw IllegalStateException
                     throw VerificationException.NegativeValueOutput()
-                valueOut = valueOut.add(output.value)
+                valueOut = valueOut.add(output.getValue())
                 if (params!!.hasMaxMoney() && valueOut.compareTo(params!!.maxMoney) > 0)
                     throw IllegalArgumentException()
             }
@@ -1454,7 +1455,7 @@ class Transaction : ChildMessage {
         }
 
         if (isCoinBase) {
-            if (inputs!![0].scriptBytes!!.size < 2 || inputs!![0].scriptBytes!!.size > 100)
+            if (inputs!![0].getScriptBytes()!!.size < 2 || inputs!![0].getScriptBytes()!!.size > 100)
                 throw VerificationException.CoinbaseScriptSizeOutOfRange()
         } else {
             for (input in inputs!!)
@@ -1476,7 +1477,7 @@ class Transaction : ChildMessage {
      */
     fun isFinal(height: Int, blockTimeSeconds: Long): Boolean {
         val time = getLockTime()
-        return time < (if (time < LOCKTIME_THRESHOLD) height else blockTimeSeconds) || !isTimeLocked
+        return time < (if (time < LOCKTIME_THRESHOLD) height.toLong() else blockTimeSeconds) || !isTimeLocked
     }
 
     /**
@@ -1500,23 +1501,23 @@ class Transaction : ChildMessage {
             val time2 = tx2.updateTime.time
             val updateTimeComparison = -Longs.compare(time1, time2)
             //If time1==time2, compare by tx hash to make comparator consistent with equals
-            if (updateTimeComparison != 0) updateTimeComparison else tx1.hash.compareTo(tx2.hash)
+            if (updateTimeComparison != 0) updateTimeComparison else tx1.hash!!.compareTo(tx2.hash!!)
         }
         /** A comparator that can be used to sort transactions by their chain height.  */
         val SORT_TX_BY_HEIGHT: Comparator<Transaction> = Comparator { tx1, tx2 ->
             val confidence1 = tx1.getConfidence()
-            val height1 = if (confidence1.confidenceType == ConfidenceType.BUILDING)
-                confidence1.appearedAtChainHeight
+            val height1 = if (confidence1.getConfidenceType() == ConfidenceType.BUILDING)
+                confidence1.getAppearedAtChainHeight()
             else
                 Block.BLOCK_HEIGHT_UNKNOWN
             val confidence2 = tx2.getConfidence()
-            val height2 = if (confidence2.confidenceType == ConfidenceType.BUILDING)
-                confidence2.appearedAtChainHeight
+            val height2 = if (confidence2.getConfidenceType() == ConfidenceType.BUILDING)
+                confidence2.getAppearedAtChainHeight()
             else
                 Block.BLOCK_HEIGHT_UNKNOWN
             val heightComparison = -Ints.compare(height1, height2)
             //If height1==height2, compare by tx hash to make comparator consistent with equals
-            if (heightComparison != 0) heightComparison else tx1.hash.compareTo(tx2.hash)
+            if (heightComparison != 0) heightComparison else tx1.hash!!.compareTo(tx2.hash!!)
         }
         private val log = LoggerFactory.getLogger(Transaction::class.java!!)
 

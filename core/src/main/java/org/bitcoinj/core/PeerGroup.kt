@@ -203,9 +203,9 @@ private constructor(context: Context, protected val chain: AbstractBlockChain?, 
         // and possibly retransmit if so. The recalculation process will end up including the tx hash into the
         // filter. In case (1), we need to retransmit the filter to the connected peers. In case (2), we don't
         // and shouldn't, we should just recalculate and cache the new filter for next time.
-        for (output in tx.outputs) {
-            if (output.scriptPubKey.isSentToRawPubKey && output.isMine(wallet)) {
-                if (tx.confidence.confidenceType == TransactionConfidence.ConfidenceType.BUILDING)
+        for (output in tx.getOutputs()) {
+            if (output.getScriptPubKey().isSentToRawPubKey && output.isMine(wallet)) {
+                if (tx.getConfidence().getConfidenceType() == TransactionConfidence.ConfidenceType.BUILDING)
                     recalculateFastCatchupAndFilter(FilterRecalculateMode.SEND_IF_CHANGED)
                 else
                     recalculateFastCatchupAndFilter(FilterRecalculateMode.DONT_SEND)
@@ -443,17 +443,17 @@ private constructor(context: Context, protected val chain: AbstractBlockChain?, 
         versionMessage!!.relayTxesBeforeFilter = true
 
         downloadTxDependencyDepth = Integer.MAX_VALUE
-
+        backoffMap = HashMap()
         inactives = PriorityQueue(1, Comparator { a, b ->
             // only called when inactives is accessed, and lock is held then.
             checkState(lock.isHeldByCurrentThread)
-            var result = backoffMap[a].compareTo(backoffMap[b])
+            var result = backoffMap[a]!!.compareTo(backoffMap[b])
             // Sort by port if otherwise equals - for testing
             if (result == 0)
-                result = Ints.compare(a.port, b.port)
+                result = Ints.compare(a.getPort(), b.getPort())
             result
         })
-        backoffMap = HashMap()
+
         peers = CopyOnWriteArrayList()
         pendingPeers = CopyOnWriteArrayList()
         peerDiscoverers = CopyOnWriteArraySet()

@@ -89,7 +89,7 @@ class StoredBlock(
      */
     @Throws(BlockStoreException::class)
     fun getPrev(store: BlockStore): StoredBlock {
-        return store.get(header.prevBlockHash)
+        return store.get(header.getPrevBlockHash())
     }
 
     /** Serializes the stored block to a custom packed format. Used by [CheckpointManager].  */
@@ -130,7 +130,7 @@ class StoredBlock(
             val height = buffer.int  // +4 bytes
             val header = ByteArray(Block.HEADER_SIZE + 1)    // Extra byte for the 00 transactions length.
             buffer.get(header, 0, Block.HEADER_SIZE)
-            return StoredBlock(params.getDefaultSerializer().makeBlock(header), chainWork, height)
+            return StoredBlock(params.defaultSerializer!!.makeBlock(header), chainWork, height)
         }
     }
 }

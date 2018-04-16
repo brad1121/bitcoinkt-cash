@@ -53,6 +53,25 @@ abstract class PeerSocketHandler : AbstractTimeoutHandler, StreamConnection {
     @VisibleForTesting
     var writeTarget: MessageWriteTarget? = null
 
+        /**
+         * Sets the [MessageWriteTarget] used to write messages to the peer. This should almost never be called, it is
+         * called automatically by [org.bitcoinj.net.NioClient] or
+         * [org.bitcoinj.net.NioClientManager] once the socket finishes initialization.
+         */
+        set(writeTarget: MessageWriteTarget?) {
+            checkArgument(writeTarget != null)
+            lock.lock()
+            var closeNow = false
+            try {
+                checkArgument(this.writeTarget == null)
+                closeNow = closePending
+                this.writeTarget = writeTarget
+            } finally {
+                lock.unlock()
+            }
+            if (closeNow)
+                writeTarget!!.closeConnection()
+        }
     // The ByteBuffers passed to us from the writeTarget are static in size, and usually smaller than some messages we
     // will receive. For SPV clients, this should be rare (ie we're mostly dealing with small transactions), but for
     // messages which are larger than the read buffer, we have to keep a temporary buffer with its bytes.
@@ -64,13 +83,13 @@ abstract class PeerSocketHandler : AbstractTimeoutHandler, StreamConnection {
 
     constructor(params: NetworkParameters, remoteIp: InetSocketAddress) {
         checkNotNull(params)
-        serializer = params.getDefaultSerializer()
+        serializer = params.defaultSerializer!!
         this.address = PeerAddress(params, remoteIp)
     }
 
     constructor(params: NetworkParameters, peerAddress: PeerAddress) {
         checkNotNull(params)
-        serializer = params.getDefaultSerializer()
+        serializer = params.defaultSerializer!!
         this.address = checkNotNull(peerAddress)
     }
 
@@ -143,7 +162,7 @@ abstract class PeerSocketHandler : AbstractTimeoutHandler, StreamConnection {
                     // Check the largeReadBuffer's status
                     if (largeReadBufferPos == largeReadBuffer!!.size) {
                         // ...processing a message if one is available
-                        processMessage(serializer.deserializePayload(header, ByteBuffer.wrap(largeReadBuffer!!)))
+                        processMessage(serializer.deserializePayload(header!!, ByteBuffer.wrap(largeReadBuffer!!)))
                         largeReadBuffer = null
                         header = null
                         firstMessage = false
@@ -196,25 +215,7 @@ abstract class PeerSocketHandler : AbstractTimeoutHandler, StreamConnection {
 
     }
 
-    /**
-     * Sets the [MessageWriteTarget] used to write messages to the peer. This should almost never be called, it is
-     * called automatically by [org.bitcoinj.net.NioClient] or
-     * [org.bitcoinj.net.NioClientManager] once the socket finishes initialization.
-     */
-    override fun setWriteTarget(writeTarget: MessageWriteTarget?) {
-        checkArgument(writeTarget != null)
-        lock.lock()
-        var closeNow = false
-        try {
-            checkArgument(this.writeTarget == null)
-            closeNow = closePending
-            this.writeTarget = writeTarget
-        } finally {
-            lock.unlock()
-        }
-        if (closeNow)
-            writeTarget!!.closeConnection()
-    }
+
 
     override fun getMaxMessageSize(): Int {
         return Message.MAX_SIZE

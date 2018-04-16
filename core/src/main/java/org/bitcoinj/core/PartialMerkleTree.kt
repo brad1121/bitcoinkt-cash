@@ -23,7 +23,7 @@ import java.io.OutputStream
 import java.util.ArrayList
 import java.util.Arrays
 
-import org.bitcoinj.core.Utils.*
+import org.bitcoinj.core.Utils
 import com.google.common.base.Objects
 
 /**
@@ -87,7 +87,7 @@ class PartialMerkleTree : Message {
 
     @Throws(IOException::class)
     public override fun bitcoinSerializeToStream(stream: OutputStream) {
-        uint32ToByteStreamLE(transactionCount.toLong(), stream)
+        Utils.uint32ToByteStreamLE(transactionCount.toLong(), stream)
 
         stream.write(VarInt(hashes!!.size.toLong()).encode())
         for (hash in hashes!!)
@@ -125,7 +125,7 @@ class PartialMerkleTree : Message {
             // overflowed the bits array - failure
             throw VerificationException("PartialMerkleTree overflowed its bits array")
         }
-        val parentOfMatch = checkBitLE(matchedChildBits!!, used.bitsUsed++)
+        val parentOfMatch = Utils.checkBitLE(matchedChildBits!!, used.bitsUsed++)
         if (height == 0 || !parentOfMatch) {
             // if at height 0, or nothing interesting below, use stored hash and do not descend
             if (used.hashesUsed >= hashes!!.size) {
@@ -293,8 +293,8 @@ class PartialMerkleTree : Message {
 
         private fun combineLeftRight(left: ByteArray, right: ByteArray): Sha256Hash {
             return Sha256Hash.wrapReversed(Sha256Hash.hashTwice(
-                    reverseBytes(left), 0, 32,
-                    reverseBytes(right), 0, 32))
+                    Utils.reverseBytes(left), 0, 32,
+                    Utils.reverseBytes(right), 0, 32))
         }
     }
 }

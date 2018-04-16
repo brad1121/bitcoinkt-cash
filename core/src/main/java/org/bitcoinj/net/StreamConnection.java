@@ -56,7 +56,7 @@ public interface StreamConnection {
      * Called when this connection is attached to an upstream write target (ie a low-level connection handler). This
      * writeTarget should be stored and used to close the connection or write data to the socket.
      */
-    void setWriteTarget(MessageWriteTarget writeTarget);
+   // void setWriteTarget(MessageWriteTarget writeTarget);
 
     /**
      * Returns the maximum message size of a message on the socket. This is used in calculating size of buffers to

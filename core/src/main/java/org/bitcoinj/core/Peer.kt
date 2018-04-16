@@ -55,7 +55,7 @@ import com.google.common.base.Preconditions.checkState
  * [org.bitcoinj.net.AbstractTimeoutHandler.setTimeoutEnabled]) once the version
  * handshake completes.
  */
-class Peer
+abstract class Peer : PeerSocketHandler {
 /**
  *
  * Construct a peer that reads/writes from the given block chain. Transactions stored in a [org.bitcoinj.core.TxConfidenceTable]
@@ -73,8 +73,10 @@ class Peer
  * The remoteAddress provided should match the remote address of the peer which is being connected to, and is
  * used to keep track of which peers relayed transactions and offer more descriptive logging.
  */
-@JvmOverloads constructor(params: NetworkParameters, ver: VersionMessage, remoteAddress: PeerAddress,
-                          private val blockChain: AbstractBlockChain?, downloadTxDependencyDepth: Int = Integer.MAX_VALUE) : PeerSocketHandler(params, remoteAddress) {
+ constructor(params: NetworkParameters, ver: VersionMessage, remoteAddress: PeerAddress,
+                           blockChain: AbstractBlockChain?, downloadTxDependencyDepth: Int = Integer.MAX_VALUE) : PeerSocketHandler(params, remoteAddress) {
+    Peer(params,ver,remoteAddress,blockChain)
+}
 
     protected val lock = Threading.lock("peer")
 

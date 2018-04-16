@@ -33,7 +33,10 @@ abstract class ListMessage : Message {
 
     private var arrayLen: Long = 0
     // For some reason the compiler complains if this is inside InventoryItem
-    var items: MutableList<InventoryItem>
+    var items: MutableList<InventoryItem>? = null
+         get(): MutableList<InventoryItem>? {
+            return Collections.unmodifiableList(items)
+        }
 
     @Throws(ProtocolException::class)
     constructor(params: NetworkParameters, bytes: ByteArray) : super(params, bytes, 0) {
@@ -48,22 +51,20 @@ abstract class ListMessage : Message {
         length = 1 //length of 0 varint;
     }
 
-    fun getItems(): List<InventoryItem> {
-        return Collections.unmodifiableList(items)
-    }
+
 
     fun addItem(item: InventoryItem) {
         unCache()
-        length -= VarInt.sizeOf(items.size.toLong())
-        items.add(item)
-        length += VarInt.sizeOf(items.size.toLong()) + InventoryItem.MESSAGE_LENGTH
+        length -= VarInt.sizeOf(items!!.size.toLong())
+        items!!.add(item)
+        length += VarInt.sizeOf(items!!.size.toLong()) + InventoryItem.MESSAGE_LENGTH
     }
 
     fun removeItem(index: Int) {
         unCache()
-        length -= VarInt.sizeOf(items.size.toLong())
-        items.removeAt(index)
-        length += VarInt.sizeOf(items.size.toLong()) - InventoryItem.MESSAGE_LENGTH
+        length -= VarInt.sizeOf(items!!.size.toLong())
+        items!!.removeAt(index)
+        length += VarInt.sizeOf(items!!.size.toLong()) - InventoryItem.MESSAGE_LENGTH
     }
 
     @Throws(ProtocolException::class)
@@ -90,15 +91,15 @@ abstract class ListMessage : Message {
                 else -> throw ProtocolException("Unknown CInv type: " + typeCode)
             }
             val item = InventoryItem(type, readHash())
-            items.add(item)
+            items!!.add(item)
         }
         payload = null
     }
 
     @Throws(IOException::class)
     public override fun bitcoinSerializeToStream(stream: OutputStream) {
-        stream.write(VarInt(items.size.toLong()).encode())
-        for (i in items) {
+        stream.write(VarInt(items!!.size.toLong()).encode())
+        for (i in items!!) {
             // Write out the type code.
             Utils.uint32ToByteStreamLE(i.type.ordinal.toLong(), stream)
             // And now the hash.
@@ -112,7 +113,7 @@ abstract class ListMessage : Message {
     }
 
     override fun hashCode(): Int {
-        return items.hashCode()
+        return items!!.hashCode()
     }
 
     companion object {
