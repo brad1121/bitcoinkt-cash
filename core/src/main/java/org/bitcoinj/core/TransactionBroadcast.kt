@@ -40,8 +40,8 @@ import org.bitcoinj.core.listeners.PreMessageReceivedEventListener
 open class TransactionBroadcast {
 
     private val future = SettableFuture.create<Transaction>()
-    private val peerGroup: PeerGroup?
-    private val tx: Transaction
+    private var peerGroup: PeerGroup? = null
+    private var tx: Transaction? = null
     private var minConnections: Int = 0
     private var numWaitingFor: Int = 0
 
@@ -71,16 +71,19 @@ open class TransactionBroadcast {
     open fun future(): ListenableFuture<Transaction> {
         return future
     }
-    private val rejectionListener = object : PreMessageReceivedEventListener {
+
+
+    private val rejectionListener = object  : PreMessageReceivedEventListener {
         override fun onPreMessageReceived(peer: Peer, m: Message): Message {
             if (m is RejectMessage) {
-                if (tx.hash == m.rejectedObjectHash) {
-                    rejects.put(peer, m)
+                val rejectMessage = m
+                if (tx!!.hash == rejectMessage.rejectedObjectHash) {
+                    rejects[peer] = rejectMessage
                     val size = rejects.size
                     val threshold = Math.round(numWaitingFor / 2.0)
                     if (size > threshold) {
                         log.warn("Threshold for considering broadcast rejected has been reached ({}/{})", size, threshold)
-                        future.setException(RejectedTransactionException(tx, m))
+                        future.setException(RejectedTransactionException(tx!!, rejectMessage))
                         peerGroup!!.removePreMessageReceivedEventListener(this)
                     }
                 }
@@ -88,14 +91,16 @@ open class TransactionBroadcast {
             return m
         }
     }
+
+
     fun setMinConnections(minConnections: Int) {
         this.minConnections = minConnections
     }
 
     open fun broadcast(): ListenableFuture<Transaction> {
         peerGroup!!.addPreMessageReceivedEventListener(Threading.SAME_THREAD, rejectionListener)
-        log.info("Waiting for {} peers required for broadcast, we have {} ...", minConnections, peerGroup.connectedPeers.size)
-        peerGroup.waitForPeers(minConnections).addListener(EnoughAvailablePeers(), Threading.SAME_THREAD)
+        log.info("Waiting for {} peers required for broadcast, we have {} ...", minConnections, peerGroup!!.connectedPeers.size)
+        peerGroup!!.waitForPeers(minConnections).addListener(EnoughAvailablePeers(), Threading.SAME_THREAD)
         return future
     }
 
@@ -114,7 +119,7 @@ open class TransactionBroadcast {
             // Prepare to send the transaction by adding a listener that'll be called when confidence changes.
             // Only bother with this if we might actually hear back:
             if (minConnections > 1)
-                tx.confidence.addEventListener(ConfidenceChange())
+                tx!!.getConfidence().addEventListener(ConfidenceChange())
             // Bitcoin Core sends an inv in this case and then lets the peer request the tx data. We just
             // blast out the TX here for a couple of reasons. Firstly it's simpler: in the case where we have
             // just a single connection we don't have to wait for getdata to be received and handled before
@@ -128,11 +133,11 @@ open class TransactionBroadcast {
             numWaitingFor = Math.ceil((peers.size - numToBroadcastTo) / 2.0).toInt()
             Collections.shuffle(peers, random)
             peers = peers.subList(0, numToBroadcastTo)
-            log.info("broadcastTransaction: We have {} peers, adding {} to the memory pool", numConnected, tx.hashAsString)
+            log.info("broadcastTransaction: We have {} peers, adding {} to the memory pool", numConnected, tx!!.hashAsString)
             log.info("Sending to {} peers, will wait for {}, sending to: {}", numToBroadcastTo, numWaitingFor, Joiner.on(",").join(peers))
             for (peer in peers) {
                 try {
-                    peer.sendMessage(tx)
+                    peer.sendMessage(tx!!)
                     // We don't record the peer as having seen the tx in the memory pool because we want to track only
                     // how many peers announced to us.
                 } catch (e: Exception) {
@@ -145,7 +150,7 @@ open class TransactionBroadcast {
             // So we just have to assume we're done, at that point. This happens when we're not given
             // any peer discovery source and the user just calls connectTo() once.
             if (minConnections == 1) {
-                peerGroup.removePreMessageReceivedEventListener(rejectionListener)
+                peerGroup!!.removePreMessageReceivedEventListener(rejectionListener)
                 future.set(tx)
             }
         }
@@ -155,8 +160,8 @@ open class TransactionBroadcast {
         override fun onConfidenceChanged(conf: TransactionConfidence, reason: TransactionConfidence.Listener.ChangeReason) {
             // The number of peers that announced this tx has gone up.
             val numSeenPeers = conf.numBroadcastPeers() + rejects.size
-            val mined = tx.appearsInHashes != null
-            log.info("broadcastTransaction: {}:  TX {} seen by {} peers{}", reason, tx.hashAsString,
+            val mined = tx!!.getAppearsInHashes() != null
+            log.info("broadcastTransaction: {}:  TX {} seen by {} peers{}", reason, tx!!.hashAsString,
                     numSeenPeers, if (mined) " and mined" else "")
 
             // Progress callback on the requested thread.
@@ -176,7 +181,7 @@ open class TransactionBroadcast {
                 //
                 // We're done! It's important that the PeerGroup lock is not held (by this thread) at this
                 // point to avoid triggering inversions when the Future completes.
-                log.info("broadcastTransaction: {} complete", tx.hash)
+                log.info("broadcastTransaction: {} complete", tx!!.hash)
                 peerGroup!!.removePreMessageReceivedEventListener(rejectionListener)
                 conf.removeEventListener(this)
                 future.set(tx)  // RE-ENTRANCY POINT
@@ -191,10 +196,10 @@ open class TransactionBroadcast {
         }
         invokeProgressCallback(numSeenPeers, mined)
     }
-
+    // *_*CHECK
     private fun invokeProgressCallback(numSeenPeers: Int, mined: Boolean) {
-        var callback: ProgressCallback?
-        var executor: Executor?
+        var callback: ProgressCallback? =null
+        var executor: Executor? = null
         synchronized(this) {
             callback = this.callback
             executor = this.progressCallbackExecutor
@@ -244,9 +249,12 @@ open class TransactionBroadcast {
             num = this.numSeemPeers
             mined = this.mined
             shouldInvoke = numWaitingFor > 0
+
+            if (shouldInvoke) {
+                invokeProgressCallback(num, mined)
+            }
         }
-        if (shouldInvoke)
-            invokeProgressCallback(num, mined)
+
     }
 
     companion object {

@@ -65,7 +65,7 @@ class TxConfidenceTable
 
     init {
         table = object : LinkedHashMap<Sha256Hash, WeakConfidenceReference>() {
-            protected override fun removeEldestEntry(entry: Entry<Sha256Hash, WeakConfidenceReference>?): Boolean {
+            protected override fun removeEldestEntry(entry: Map.Entry<Sha256Hash, WeakConfidenceReference>?): Boolean {
                 // An arbitrary choice to stop the memory used by tracked transactions getting too huge in the event
                 // of some kind of DoS attack.
                 return size > size
@@ -83,12 +83,13 @@ class TxConfidenceTable
     private fun cleanTable() {
         lock.lock()
         try {
-            var ref: Reference<out TransactionConfidence>
-            while ((ref = referenceQueue.poll()) != null) {
+            var ref: Reference<out TransactionConfidence>? = referenceQueue.poll()
+            while ( ref != null) {
                 // Find which transaction got deleted by the GC.
                 val txRef = ref as WeakConfidenceReference
                 // And remove the associated map entry so the other bits of memory can also be reclaimed.
                 table.remove(txRef.hash)
+                ref = referenceQueue.poll()
             }
         } finally {
             lock.unlock()
@@ -125,20 +126,21 @@ class TxConfidenceTable
      * [org.bitcoinj.core.TransactionConfidence] object, creating it if needed.
      *
      * @return the number of peers that have now announced this hash (including the caller)
+     *  *_*CHECK
      */
     fun seen(hash: Sha256Hash, byPeer: PeerAddress): TransactionConfidence {
-        var confidence: TransactionConfidence
+        var confidence: TransactionConfidence? = null
         var fresh = false
         lock.lock()
         run {
             cleanTable()
             confidence = getOrCreate(hash)
-            fresh = confidence.markBroadcastBy(byPeer)
+            fresh = confidence!!.markBroadcastBy(byPeer)
         }
         lock.unlock()
         if (fresh)
-            confidence.queueListeners(TransactionConfidence.Listener.ChangeReason.SEEN_PEERS)
-        return confidence
+            confidence!!.queueListeners(TransactionConfidence.Listener.ChangeReason.SEEN_PEERS)
+        return confidence!!
     }
 
     /**

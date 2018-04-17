@@ -113,7 +113,7 @@ open class TransactionInput : ChildMessage {
      * @return The Transaction that owns this input.
      */
     val parentTransaction: Transaction
-        get() = parent as Transaction?
+        get() = parent as Transaction
 
     /**
      * Returns whether this input will cause a transaction to opt into the
@@ -128,7 +128,7 @@ open class TransactionInput : ChildMessage {
      * this method returns null.
      */
     val connectedOutput: TransactionOutput?
-        get() = outpoint!!.connectedOutput
+        get() = outpoint!!.getConnectedOutput()
 
     /**
      * Returns the connected transaction, assuming the input was connected with
@@ -156,7 +156,7 @@ open class TransactionInput : ChildMessage {
         this.outpoint = outpoint
         this.sequence = NO_SEQUENCE
         this.value = value
-        setParent(parentTransaction)
+        parent = (parentTransaction)
         length = 40 + if (scriptBytes == null) 1 else VarInt.sizeOf(scriptBytes.size.toLong()) + scriptBytes.size
     }
 
@@ -172,8 +172,8 @@ open class TransactionInput : ChildMessage {
         }
         scriptBytes = EMPTY_ARRAY
         sequence = NO_SEQUENCE
-        setParent(parentTransaction)
-        this.value = output.value
+        parent = (parentTransaction)
+        this.value = output.getValue()
         length = 41
     }
 
@@ -182,7 +182,7 @@ open class TransactionInput : ChildMessage {
      */
     @Throws(ProtocolException::class)
     constructor(params: NetworkParameters, parentTransaction: Transaction?, payload: ByteArray, offset: Int) : super(params, payload, offset) {
-        setParent(parentTransaction)
+        parent = (parentTransaction)
         this.value = null
     }
 
@@ -201,7 +201,7 @@ open class TransactionInput : ChildMessage {
 
     @Throws(ProtocolException::class)
     override fun parse() {
-        outpoint = TransactionOutPoint(params, payload, cursor, this, serializer)
+        outpoint = TransactionOutPoint(params!!, payload!!, cursor, this, serializer!!)
         cursor += outpoint!!.messageSize
         val scriptLen = readVarInt().toInt()
         length = cursor - offset + scriptLen + 4
@@ -283,7 +283,7 @@ open class TransactionInput : ChildMessage {
      */
     internal fun getConnectedOutput(transactions: Map<Sha256Hash, Transaction>): TransactionOutput? {
         val tx = transactions[outpoint!!.hash] ?: return null
-        return tx.outputs[outpoint!!.index.toInt()]
+        return tx.getOutputs()[outpoint!!.index.toInt()]
     }
 
     /**
@@ -327,7 +327,7 @@ open class TransactionInput : ChildMessage {
     fun connect(transaction: Transaction, mode: ConnectMode): ConnectionResult {
         if (transaction.hash != outpoint!!.hash)
             return ConnectionResult.NO_SUCH_TX
-        checkElementIndex(outpoint!!.index.toInt(), transaction.outputs.size, "Corrupt transaction")
+        checkElementIndex(outpoint!!.index.toInt(), transaction.getOutputs().size, "Corrupt transaction")
         val out = transaction.getOutput(outpoint!!.index.toInt().toLong())
         if (!out.isAvailableForSpending) {
             if (parentTransaction == outpoint!!.fromTx) {
@@ -348,7 +348,7 @@ open class TransactionInput : ChildMessage {
     fun connect(out: TransactionOutput) {
         outpoint!!.fromTx = out.parentTransaction
         out.markAsSpent(this)
-        value = out.value
+        value = out.getValue()
     }
 
     /**
@@ -406,14 +406,14 @@ open class TransactionInput : ChildMessage {
             if (outpoint!!.index != output.index.toLong())
                 throw VerificationException("This input refers to a different output on the given tx.")
         }
-        val pubKey = output.scriptPubKey
-        val myIndex = parentTransaction.inputs.indexOf(this)
+        val pubKey = output.getScriptPubKey()
+        val myIndex = parentTransaction.getInputs().indexOf(this)
         getScriptSig().correctlySpends(parentTransaction, myIndex.toLong(), pubKey)
     }
 
     /** Returns a copy of the input detached from its containing transaction, if need be.  */
     fun duplicateDetached(): TransactionInput {
-        return TransactionInput(params, null, bitcoinSerialize(), 0)
+        return TransactionInput(params!!, null, bitcoinSerialize(), 0)
     }
 
     override fun equals(o: Any?): Boolean {

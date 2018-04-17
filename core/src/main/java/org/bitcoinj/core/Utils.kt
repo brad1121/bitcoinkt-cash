@@ -43,6 +43,9 @@ import java.util.concurrent.TimeUnit
 
 import com.google.common.base.Preconditions.checkArgument
 import com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly
+import java.nio.charset.Charset
+import kotlin.experimental.and
+import kotlin.experimental.or
 
 /**
  * A collection of various utility methods that are helpful for working with the Bitcoin protocol.
@@ -108,50 +111,50 @@ object Utils {
         System.arraycopy(biBytes, start, bytes, numBytes - length, length)
         return bytes
     }
-
+//*_*CHECK -- ALl of this needs review
     fun uint32ToByteArrayBE(`val`: Long, out: ByteArray, offset: Int) {
-        out[offset] = (0xFF and (`val` shr 24)).toByte()
-        out[offset + 1] = (0xFF and (`val` shr 16)).toByte()
-        out[offset + 2] = (0xFF and (`val` shr 8)).toByte()
-        out[offset + 3] = (0xFF and `val`).toByte()
+        out[offset] = (0xFF and (`val` shr 24).toInt()).toByte()
+        out[offset + 1] = (0xFF and (`val` shr 16).toInt()).toByte()
+        out[offset + 2] = (0xFF and (`val` shr 8).toInt()).toByte()
+        out[offset + 3] = (0xFF and `val`.toInt()).toByte()
     }
 
     fun uint32ToByteArrayLE(`val`: Long, out: ByteArray, offset: Int) {
-        out[offset] = (0xFF and `val`).toByte()
-        out[offset + 1] = (0xFF and (`val` shr 8)).toByte()
-        out[offset + 2] = (0xFF and (`val` shr 16)).toByte()
-        out[offset + 3] = (0xFF and (`val` shr 24)).toByte()
+        out[offset] = (0xFF and `val`.toInt()).toByte()
+        out[offset + 1] = (0xFF and (`val` shr 8).toInt()).toByte()
+        out[offset + 2] = (0xFF and (`val` shr 16).toInt()).toByte()
+        out[offset + 3] = (0xFF and (`val` shr 24).toInt()).toByte()
     }
 
     fun uint64ToByteArrayLE(`val`: Long, out: ByteArray, offset: Int) {
-        out[offset] = (0xFF and `val`).toByte()
-        out[offset + 1] = (0xFF and (`val` shr 8)).toByte()
-        out[offset + 2] = (0xFF and (`val` shr 16)).toByte()
-        out[offset + 3] = (0xFF and (`val` shr 24)).toByte()
-        out[offset + 4] = (0xFF and (`val` shr 32)).toByte()
-        out[offset + 5] = (0xFF and (`val` shr 40)).toByte()
-        out[offset + 6] = (0xFF and (`val` shr 48)).toByte()
-        out[offset + 7] = (0xFF and (`val` shr 56)).toByte()
+        out[offset] = (0xFF and `val`.toInt()).toByte()
+        out[offset + 1] = (0xFF and (`val` shr 8).toInt()).toByte()
+        out[offset + 2] = (0xFF and (`val` shr 16).toInt()).toByte()
+        out[offset + 3] = (0xFF and (`val` shr 24).toInt()).toByte()
+        out[offset + 4] = (0xFF and (`val` shr 32).toInt()).toByte()
+        out[offset + 5] = (0xFF and (`val` shr 40).toInt()).toByte()
+        out[offset + 6] = (0xFF and (`val` shr 48).toInt()).toByte()
+        out[offset + 7] = (0xFF and (`val` shr 56).toInt()).toByte()
     }
 
     @Throws(IOException::class)
     fun uint32ToByteStreamLE(`val`: Long, stream: OutputStream) {
-        stream.write((0xFF and `val`).toInt())
-        stream.write((0xFF and (`val` shr 8)).toInt())
-        stream.write((0xFF and (`val` shr 16)).toInt())
-        stream.write((0xFF and (`val` shr 24)).toInt())
+        stream.write((0xFF and `val`.toInt()).toInt())
+        stream.write((0xFF and (`val` shr 8).toInt()).toInt())
+        stream.write((0xFF and (`val` shr 16).toInt()).toInt())
+        stream.write((0xFF and (`val` shr 24).toInt()).toInt())
     }
 
     @Throws(IOException::class)
     fun int64ToByteStreamLE(`val`: Long, stream: OutputStream) {
-        stream.write((0xFF and `val`).toInt())
-        stream.write((0xFF and (`val` shr 8)).toInt())
-        stream.write((0xFF and (`val` shr 16)).toInt())
-        stream.write((0xFF and (`val` shr 24)).toInt())
-        stream.write((0xFF and (`val` shr 32)).toInt())
-        stream.write((0xFF and (`val` shr 40)).toInt())
-        stream.write((0xFF and (`val` shr 48)).toInt())
-        stream.write((0xFF and (`val` shr 56)).toInt())
+        stream.write((0xFF and `val`.toInt()).toInt())
+        stream.write((0xFF and (`val` shr 8).toInt()).toInt())
+        stream.write((0xFF and (`val` shr 16).toInt()).toInt())
+        stream.write((0xFF and (`val` shr 24).toInt()).toInt())
+        stream.write((0xFF and (`val` shr 32).toInt()).toInt())
+        stream.write((0xFF and (`val` shr 40).toInt()).toInt())
+        stream.write((0xFF and (`val` shr 48).toInt()).toInt())
+        stream.write((0xFF and (`val` shr 56).toInt()).toInt())
     }
 
     @Throws(IOException::class)
@@ -219,35 +222,35 @@ object Utils {
 
     /** Parse 4 bytes from the byte array (starting at the offset) as unsigned 32-bit integer in little endian format.  */
     fun readUint32(bytes: ByteArray, offset: Int): Long {
-        return bytes[offset] and 0xffL or
-                (bytes[offset + 1] and 0xffL shl 8) or
-                (bytes[offset + 2] and 0xffL shl 16) or
-                (bytes[offset + 3] and 0xffL shl 24)
+        return  bytes[offset].toLong() and 0xffL or
+                bytes[offset + 1].toLong() and ( 0xffL shl 8 )or
+                bytes[offset + 2].toLong() and ( 0xffL shl 16) or
+                bytes[offset + 3].toLong() and ( 0xffL shl 24)
     }
 
     /** Parse 8 bytes from the byte array (starting at the offset) as signed 64-bit integer in little endian format.  */
     fun readInt64(bytes: ByteArray, offset: Int): Long {
-        return bytes[offset] and 0xffL or
-                (bytes[offset + 1] and 0xffL shl 8) or
-                (bytes[offset + 2] and 0xffL shl 16) or
-                (bytes[offset + 3] and 0xffL shl 24) or
-                (bytes[offset + 4] and 0xffL shl 32) or
-                (bytes[offset + 5] and 0xffL shl 40) or
-                (bytes[offset + 6] and 0xffL shl 48) or
-                (bytes[offset + 7] and 0xffL shl 56)
+        return   bytes[offset].toLong() and 0xffL or
+                bytes[offset + 1].toLong() and 0xffL shl 8 or
+                bytes[offset + 2].toLong() and 0xffL shl 16 or
+                bytes[offset + 3].toLong() and 0xffL shl 24 or
+                bytes[offset + 4].toLong() and 0xffL shl 32 or
+                bytes[offset + 5].toLong() and 0xffL shl 40 or
+                bytes[offset + 6].toLong() and 0xffL shl 48 or
+                bytes[offset + 7].toLong() and 0xffL shl 56
     }
 
     /** Parse 4 bytes from the byte array (starting at the offset) as unsigned 32-bit integer in big endian format.  */
     fun readUint32BE(bytes: ByteArray, offset: Int): Long {
-        return bytes[offset] and 0xffL shl 24 or
-                (bytes[offset + 1] and 0xffL shl 16) or
-                (bytes[offset + 2] and 0xffL shl 8) or
-                (bytes[offset + 3] and 0xffL)
+        return bytes[offset].toLong() and 0xffL shl 24 or
+                (bytes[offset + 1].toLong() and 0xffL shl 16) or
+                (bytes[offset + 2].toLong() and 0xffL shl 8) or
+                (bytes[offset + 3].toLong() and 0xffL)
     }
 
     /** Parse 2 bytes from the byte array (starting at the offset) as unsigned 16-bit integer in big endian format.  */
     fun readUint16BE(bytes: ByteArray, offset: Int): Int {
-        return bytes[offset] and 0xff shl 8 or (bytes[offset + 1] and 0xff)
+        return bytes[offset].toInt() and 0xff shl 8 or (bytes[offset + 1].toInt() and 0xff)
     }
 
     /**
@@ -278,7 +281,7 @@ object Utils {
             buf = mpi
         if (buf.size == 0)
             return BigInteger.ZERO
-        val isNegative = buf[0] and 0x80 == 0x80
+        val isNegative = buf[0].toInt() and 0x80 == 0x80
         if (isNegative)
             buf[0] = buf[0] and 0x7f
         val result = BigInteger(buf)
@@ -304,14 +307,14 @@ object Utils {
             value = value.negate()
         val array = value.toByteArray()
         var length = array.size
-        if (array[0] and 0x80 == 0x80)
+        if (array[0].toInt() and 0x80 == 0x80)
             length++
         if (includeLength) {
             val result = ByteArray(length + 4)
             System.arraycopy(array, 0, result, length - array.size + 3, array.size)
             uint32ToByteArrayBE(length.toLong(), result, 0)
             if (isNegative)
-                result[4] = result[4] or 0x80
+                result[4] = result[4] or 0x80.toByte()
             return result
         } else {
             val result: ByteArray
@@ -321,7 +324,7 @@ object Utils {
             } else
                 result = array
             if (isNegative)
-                result[0] = result[0] or 0x80
+                result[0] = result[0] or 0x80.toByte()
             return result
         }
     }
@@ -482,7 +485,7 @@ object Utils {
      */
     fun toString(bytes: ByteArray, charsetName: String): String {
         try {
-            return String(bytes, charsetName)
+            return String(bytes, charsetName as Charset)
         } catch (e: UnsupportedEncodingException) {
             throw RuntimeException(e)
         }
@@ -555,7 +558,7 @@ object Utils {
 
     /** Checks if the given bit is set in data, using little endian (not the same as Java native big endian)  */
     fun checkBitLE(data: ByteArray, index: Int): Boolean {
-        return data[index.ushr(3)] and bitMask[7 and index] != 0
+        return data[index.ushr(3)].toInt() and bitMask[7 and index] != 0
     }
 
     /** Sets the given bit in data to one, using little endian (not the same as Java native big endian)  */
@@ -627,7 +630,7 @@ object Utils {
         for (item in items) {
             var pair = pairs.last
             if (pair.item != item)
-                pairs.add(pair = Pair(item, 0))
+                pairs.add(pair = Utils.Pair(item, 0))
             pair.count++
         }
         // pairs now contains a uniqified list of the sorted inputs, with counts for how often that item appeared.

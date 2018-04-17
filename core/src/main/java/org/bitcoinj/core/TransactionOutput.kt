@@ -80,7 +80,7 @@ open class TransactionOutput : ChildMessage {
      */
     open val index: Int
         get() {
-            val outputs = parentTransaction!!.outputs
+            val outputs = parentTransaction!!.getOutputs()
             for (i in outputs.indices) {
                 if (outputs[i] === this)
                     return i
@@ -126,8 +126,8 @@ open class TransactionOutput : ChildMessage {
     open val parentTransactionDepthInBlocks: Int
         get() {
             if (parentTransaction != null) {
-                val confidence = parentTransaction!!.confidence
-                if (confidence.confidenceType == TransactionConfidence.ConfidenceType.BUILDING) {
+                val confidence = parentTransaction!!.getConfidence()
+                if (confidence.getConfidenceType() == TransactionConfidence.ConfidenceType.BUILDING) {
                     return confidence.depthInBlocks
                 }
             }
@@ -139,7 +139,7 @@ open class TransactionOutput : ChildMessage {
      * Requires that this output is not detached.
      */
     val outPointFor: TransactionOutPoint
-        get() = TransactionOutPoint(params, index.toLong(), parentTransaction)
+        get() = TransactionOutPoint(params!!, index.toLong(), parentTransaction)
 
     /**
      * Deserializes a transaction output message. This is usually part of a transaction message.
@@ -147,7 +147,7 @@ open class TransactionOutput : ChildMessage {
     @Throws(ProtocolException::class)
     constructor(params: NetworkParameters, parent: Transaction?, payload: ByteArray,
                 offset: Int) : super(params, payload, offset) {
-        setParent(parent)
+        this.parent =(parent)
         isAvailableForSpending = true
     }
 
@@ -186,7 +186,7 @@ open class TransactionOutput : ChildMessage {
         checkArgument(!params.hasMaxMoney() || value.compareTo(params.maxMoney) <= 0, "Values larger than MAX_MONEY not allowed")
         this.value = value.value
         this.scriptBytes = scriptBytes
-        setParent(parent)
+        this.parent = (parent)
         isAvailableForSpending = true
         length = 8 + VarInt.sizeOf(scriptBytes.size.toLong()) + scriptBytes.size
     }
@@ -196,7 +196,7 @@ open class TransactionOutput : ChildMessage {
         if (scriptPubKey == null) {
             scriptPubKey = Script(scriptBytes)
         }
-        return scriptPubKey
+        return scriptPubKey as Script
     }
 
     /**
@@ -397,7 +397,7 @@ open class TransactionOutput : ChildMessage {
 
     /** Returns a copy of the output detached from its containing transaction, if need be.  */
     fun duplicateDetached(): TransactionOutput {
-        return TransactionOutput(params, null, Coin.valueOf(value), org.spongycastle.util.Arrays.clone(scriptBytes))
+        return TransactionOutput(params!!, null, Coin.valueOf(value), org.spongycastle.util.Arrays.clone(scriptBytes))
     }
 
     override fun equals(o: Any?): Boolean {
